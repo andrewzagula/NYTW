@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, MessageSquare, PanelRightClose, RotateCcw, X } from "lucide-react";
@@ -34,6 +34,15 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [collapsed, setCollapsed] = useState(false); // desktop
   const [openMobile, setOpenMobile] = useState(false); // drawer
+
+  useEffect(() => {
+    if (!openMobile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMobile(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [openMobile]);
 
   const busy = status === "submitted" || status === "streaming";
 
@@ -82,9 +91,9 @@ export function ChatPanel({
               Answers are grounded in the connected repo.
             </p>
             <div className="flex flex-col gap-2">
-              {suggestions.map((s) => (
+              {suggestions.map((s, i) => (
                 <button
-                  key={s}
+                  key={`${i}-${s}`}
                   type="button"
                   onClick={() => send(s)}
                   className="rounded-lg border border-border bg-card/40 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
@@ -122,6 +131,7 @@ export function ChatPanel({
       >
         <div className="flex items-end gap-2 rounded-lg border border-border bg-card/40 px-3 py-2 focus-within:border-vermillion/60">
           <textarea
+            aria-label="Message"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
