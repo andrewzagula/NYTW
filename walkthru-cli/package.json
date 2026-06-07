@@ -1,0 +1,29 @@
+{
+  "name": "@walkthru/cli",
+  "version": "0.1.0",
+  "description": "Comprehension gate for git commits",
+  "type": "module",
+  "bin": {
+    "walkthru": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7",
+    "chalk": "^5",
+    "commander": "^13",
+    "simple-git": "^3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsup": "^8",
+    "tsx": "^4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
