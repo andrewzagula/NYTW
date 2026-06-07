@@ -89,8 +89,24 @@ function scoreMatching(q) {
 }
 
 /**
+ * Score a single FRQ question using the pre-evaluated score from the LLM.
+ * Expects q.evaluated_score: "correct" | "partial" | "incorrect".
+ * @param {{evaluated_score: string, explanation?: string}} q
+ * @returns {{score: number, correct: boolean, note?: string, explanation?: string}}
+ */
+function scoreFrq(q) {
+  const s = String(q.evaluated_score || "").trim().toLowerCase();
+  const explanation = q.explanation || undefined;
+  if (s === "correct") return { score: POINTS.FRQ_CORRECT, correct: true, explanation };
+  if (s === "partial") return { score: POINTS.FRQ_PARTIAL, correct: false, note: "partial", explanation };
+  return { score: POINTS.FRQ_INCORRECT, correct: false, explanation };
+}
+
+/**
  * Score one question by dispatching on its type.
- * @param {{question_id?: string, type: "mcq"|"matching", correct_answer:*, user_answer:*}} q
+ * FRQ: expects q.evaluated_score from the LLM evaluation step.
+ * MCQ/Matching: compares user_answer to correct_answer.
+ * @param {{question_id?: string, type: "mcq"|"matching"|"frq", correct_answer:*, user_answer:*, evaluated_score?: string}} q
  * @returns {{question_id?: string, score: number, correct: boolean, note?: string}}
  */
 function scoreQuestion(q) {
@@ -100,6 +116,8 @@ function scoreQuestion(q) {
     result = scoreMcq(q);
   } else if (type === "matching") {
     result = scoreMatching(q);
+  } else if (type === "frq") {
+    result = scoreFrq(q);
   } else {
     result = { score: 0.0, correct: false, note: `unknown type: ${q.type}` };
   }
@@ -130,5 +148,6 @@ module.exports = {
   scoreQuestion,
   scoreMcq,
   scoreMatching,
+  scoreFrq,
   toPairMap,
 };
