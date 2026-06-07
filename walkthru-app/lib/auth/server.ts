@@ -1,4 +1,27 @@
+import { NextResponse } from "next/server";
 import { getPool, initDb } from "@/lib/postgres";
+
+// --- Session cookies ---
+//
+// The session is whoever holds these cookies. On Replit, identity instead comes
+// from the x-replit-user-* request headers (see getSessionUser); locally it's
+// set either by /api/dev-login or by the GitHub OAuth callback (real login).
+
+const SESSION_COOKIE_ID = "__dev_user_id";
+const SESSION_COOKIE_NAME = "__dev_user_name";
+
+/** Short-lived cookie holding the OAuth `state` for CSRF verification. */
+export const OAUTH_STATE_COOKIE = "__gh_oauth_state";
+
+/** Mint a session for `user` on the given response (used by the GitHub login). */
+export function setSessionCookies(
+  res: NextResponse,
+  user: { id: string; name: string }
+): void {
+  const opts = { httpOnly: true, path: "/", sameSite: "lax" as const };
+  res.cookies.set(SESSION_COOKIE_ID, user.id, opts);
+  res.cookies.set(SESSION_COOKIE_NAME, encodeURIComponent(user.name), opts);
+}
 
 // --- Cookie helper ---
 
@@ -33,8 +56,8 @@ export function getSessionUser(
   const cookieHeader = req.headers.get("cookie");
   if (cookieHeader) {
     const cookies = parseCookies(cookieHeader);
-    const devId = cookies["__dev_user_id"];
-    const devName = cookies["__dev_user_name"];
+    const devId = cookies[SESSION_COOKIE_ID];
+    const devName = cookies[SESSION_COOKIE_NAME];
     if (devId && devName) return { id: devId, name: devName };
   }
 

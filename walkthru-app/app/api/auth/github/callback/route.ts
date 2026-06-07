@@ -1,19 +1,26 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser, storeGithubToken } from "@/lib/auth/server";
+import {
+  OAUTH_STATE_COOKIE,
+  setSessionCookies,
+  storeGithubToken,
+} from "@/lib/auth/server";
 import { upsertUser } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
 
   if (!code) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
-  const user = getSessionUser(request);
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  // CSRF: the state we handed GitHub must come back unchanged and match the
+  // cookie we set when starting the flow.
+  const expectedState = request.cookies.get(OAUTH_STATE_COOKIE)?.value;
+  if (!state || !expectedState || state !== expectedState) {
+    return NextResponse.json({ error: "Invalid OAuth state" }, { status: 400 });
   }
 
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -26,6 +33,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // 1. Exchange the authorization code for an access token.
   let tokenData: { access_token?: string; error_description?: string };
   try {
     const tokenRes = await fetch(
@@ -59,22 +67,48 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  await storeGithubToken(user.id, tokenData.access_token);
-
+  // 2. Identify the user from GitHub. This is what establishes the session, so
+  //    unlike a "connect" step it is required — we can't log someone in without
+  //    knowing who they are.
+  let ghUser: { id: number; login: string; avatar_url: string };
   try {
     const ghUserRes = await fetch("https://api.github.com/user", {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        Accept: "application/vnd.github+json",
+      },
     });
-    if (ghUserRes.ok) {
-      const ghUser = await ghUserRes.json() as { login: string; avatar_url: string };
-      await upsertUser(user.id, {
-        github_username: ghUser.login,
-        github_avatar: ghUser.avatar_url,
-      });
+    if (!ghUserRes.ok) {
+      return NextResponse.json(
+        { error: "Failed to load GitHub profile" },
+        { status: 502 }
+      );
     }
+    ghUser = (await ghUserRes.json()) as typeof ghUser;
   } catch {
-    // non-fatal — token is stored, profile upsert can be retried later
+    return NextResponse.json(
+      { error: "Failed to load GitHub profile" },
+      { status: 502 }
+    );
   }
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Stable internal id derived from the GitHub numeric id (survives renames).
+  const userId = `gh_${ghUser.id}`;
+
+  // 3. Persist identity + token, then mint the session cookie.
+  await upsertUser(userId, {
+    github_username: ghUser.login,
+    github_avatar: ghUser.avatar_url,
+  });
+  await storeGithubToken(userId, tokenData.access_token);
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const dashboardUrl = appUrl
+    ? new URL("/dashboard", appUrl)
+    : new URL("/dashboard", request.url);
+
+  const res = NextResponse.redirect(dashboardUrl);
+  setSessionCookies(res, { id: userId, name: ghUser.login });
+  res.cookies.delete(OAUTH_STATE_COOKIE);
+  return res;
 }
