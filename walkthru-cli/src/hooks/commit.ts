@@ -3,6 +3,7 @@ import { dirname, join } from "path";
 import chalk from "chalk";
 import simpleGit, { SimpleGit } from "simple-git";
 import { registerNewCommit } from "../commands/new-commit.js";
+import { getRepoContext } from "../lib/git.js";
 
 interface WalkthruConfig {
   includeDiff?: boolean;
@@ -50,15 +51,6 @@ function truncate(value: string, maxBytes: number): string {
   return `${output}\n\n[Walkthru truncated diff from ${bytes} bytes to ${maxBytes} bytes]`;
 }
 
-async function optionalGit(git: SimpleGit, args: string[]): Promise<string | undefined> {
-  try {
-    const value = (await git.raw(args)).trim();
-    return value || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 async function registeredPath(git: SimpleGit): Promise<string> {
   const path = await git.raw(["rev-parse", "--git-path", "walkthru/registered-commits.json"]);
   return path.trim();
@@ -91,10 +83,7 @@ async function getCommitDetails(git: SimpleGit, sha: string): Promise<CommitDeta
   const message = rawMessage.trim();
   const [subject = "", ...bodyParts] = message.split(/\n\n/);
   const body = bodyParts.join("\n\n").trim();
-  const branch = await optionalGit(git, ["branch", "--show-current"]);
-  const remoteUrl = await optionalGit(git, ["config", "--get", "remote.origin.url"]);
-  const topLevel = await optionalGit(git, ["rev-parse", "--show-toplevel"]);
-  const repository = topLevel ? topLevel.split("/").filter(Boolean).pop() : undefined;
+  const { branch, remoteUrl, repository } = await getRepoContext(git);
   const diff = config.includeDiff
     ? truncate(await git.raw(["show", "--format=", "--no-ext-diff", sha]), config.maxDiffBytes)
     : undefined;
@@ -136,6 +125,9 @@ async function registerCommit(git: SimpleGit, sha: string, source: "post-commit"
 
   await markRegistered(git, sha);
   console.log(chalk.green(`Walkthru quiz for ${sha.slice(0, 7)}: ${data.url}`));
+  if (data.commitUrl) {
+    console.log(chalk.green(`Commit for ${sha.slice(0, 7)}: ${data.commitUrl}`));
+  }
 }
 
 export async function runPostCommitHook(): Promise<void> {

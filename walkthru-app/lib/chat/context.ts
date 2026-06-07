@@ -44,9 +44,18 @@ export function suggestedPrompts(commit: ChatCommit | null): string[] {
   ];
 }
 
+/** A code snippet retrieved from perseus, in the shape the prompt embeds. */
+export type RetrievedHit = {
+  path: string;
+  lineStart: number;
+  lineEnd: number;
+  snippet: string;
+};
+
 export function buildSystemPrompt(
   repo: ChatRepo,
   commit: ChatCommit | null,
+  hits: RetrievedHit[] = [],
 ): string {
   const lines: string[] = [
     `You are Walkthru's code assistant for the repository ${repo.owner}/${repo.name}.`,
@@ -76,6 +85,13 @@ export function buildSystemPrompt(
         "",
         "No diff is available for this commit; answer from the metadata above.",
       );
+    }
+  }
+
+  if (hits.length > 0) {
+    lines.push("", "Relevant code retrieved from the repository:");
+    for (const h of hits) {
+      lines.push(`--- ${h.path}:${h.lineStart}-${h.lineEnd} ---`, h.snippet);
     }
   }
 

@@ -100,6 +100,16 @@ export async function POST(request: NextRequest) {
     questions,
   });
 
-  const url = new URL(`/q/${sessionId}`, publicBaseUrl(request)).toString();
-  return NextResponse.json({ url, sessionId });
+  const baseUrl = publicBaseUrl(request);
+  const url = new URL(`/q/${sessionId}`, baseUrl).toString();
+
+  const repo = repoName(payload);
+  let commitUrl: string | null = null;
+  if (repo.includes("/") && repo !== "unknown" && payload.commitSha) {
+    const commitPath = new URL(`/repos/${repo}`, baseUrl);
+    commitPath.searchParams.set("commit", payload.commitSha);
+    commitUrl = commitPath.toString();
+  }
+
+  return NextResponse.json({ url, sessionId, commitUrl });
 }
