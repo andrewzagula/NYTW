@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Walkthru App
 
-## Getting Started
+Next.js 16 web app for the Walkthru developer comprehension platform.
 
-First, run the development server:
+## Environment Variables
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Variable | Description |
+|---|---|
+| `GITHUB_CLIENT_ID` | OAuth App client ID from GitHub |
+| `GITHUB_CLIENT_SECRET` | OAuth App client secret from GitHub |
+| `NEXTAUTH_SECRET` | Random string (reserved for future signing) |
+| `NEXT_PUBLIC_APP_URL` | Deployed app URL, e.g. `https://walkthru.replit.app` |
+
+On Replit these are set as Secrets. For local dev, create a `.env.local` file:
+
+```
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+NEXTAUTH_SECRET=any-random-string
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+REPLIT_DB_URL=your_replit_db_url
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Register a GitHub OAuth App
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Go to **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**
+2. Set **Application name**: `Walkthru` (or any name)
+3. Set **Homepage URL**: your app URL (e.g. `https://walkthru.replit.app`)
+4. Set **Authorization callback URL**: `https://walkthru.replit.app/api/auth/github/callback`
+   - For local dev: `http://localhost:3000/api/auth/github/callback`
+5. Click **Register application**, then generate a client secret
+6. Copy the Client ID and Client Secret into your environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Running Locally
 
-## Learn More
+**Note:** `@replit/database` requires `REPLIT_DB_URL` to be set. You can get your Replit DB URL from the Replit shell via `echo $REPLIT_DB_URL`, then add it to `.env.local`.
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000/test](http://localhost:3000/test) to use the test page.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Because Replit Auth works via injected headers (`X-Replit-User-Id`, `X-Replit-User-Name`), local dev won't have a real Replit identity. To test locally, use a reverse proxy or curl with fake headers:
 
-## Deploy on Vercel
+```bash
+# Test status endpoint with fake Replit headers
+curl -H "X-Replit-User-Id: test123" -H "X-Replit-User-Name: testuser" \
+  http://localhost:3000/api/auth/status
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Running on Replit
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Add the four environment variables as Replit Secrets
+2. Click **Run** — `npm run dev` starts automatically
+3. Visit the `/test` route on your Replit app URL
+4. Sign in via Replit (automatic on Replit), then click **Connect GitHub**
+5. After OAuth, you'll be redirected back to `/test` with GitHub connected
+
+## API Routes
+
+| Route | Auth | Description |
+|---|---|---|
+| `GET /api/auth/github` | none | Redirects to GitHub OAuth |
+| `GET /api/auth/github/callback` | Replit header | Exchanges code for token, stores it |
+| `GET /api/auth/status` | none | `{ replit_authed, github_connected, username }` |
+| `GET /api/repos` | Replit + GitHub | Returns 20 most-recent repos |
+| `GET /api/commits?owner=&repo=&limit=` | Replit + GitHub | Returns up to `limit` commits (default 500) |
