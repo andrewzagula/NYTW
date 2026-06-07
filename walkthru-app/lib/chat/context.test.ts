@@ -70,6 +70,31 @@ describe("buildSystemPrompt", () => {
     const sys = buildSystemPrompt(repo, commit);
     expect(sys).toMatch(/no diff/i);
   });
+  it("embeds retrieved hits with symbol metadata", () => {
+    const sys = buildSystemPrompt(repo, null, {
+      hits: [
+        {
+          path: "utils/grade-calculator.ts",
+          lineStart: 99,
+          lineEnd: 101,
+          snippet: "function getAssignmentEarnedPoints() {}",
+          kind: "function",
+          symbol: "getAssignmentEarnedPoints",
+          signature: "getAssignmentEarnedPoints (assignment)",
+        },
+      ],
+    });
+    expect(sys).toContain("utils/grade-calculator.ts:99-101");
+    expect(sys).toContain("function getAssignmentEarnedPoints");
+    expect(sys).toContain("signature:");
+  });
+  it("embeds perseus's preliminary answer as a starting point", () => {
+    const sys = buildSystemPrompt(repo, null, {
+      answer: "It multiplies score points by the multiplier.",
+    });
+    expect(sys).toContain("multiplies score points");
+    expect(sys).toMatch(/starting point|preliminary/i);
+  });
 });
 
 describe("lastUserText", () => {
