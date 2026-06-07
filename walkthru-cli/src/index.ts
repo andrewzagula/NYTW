@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { login } from "./commands/login.js";
 import { init } from "./commands/init.js";
 import { openWalkthru } from "./commands/open.js";
+import { newCommit } from "./commands/newCommit.js";
 import { runCommitGate } from "./hooks/commit.js";
 
 const program = new Command();
@@ -27,6 +28,11 @@ program
   .command("init")
   .description("Install the Walkthru commit hook in the current repo")
   .action(init);
+
+program
+  .command("new-commit")
+  .description("Record and print the latest commit after a PR update or push")
+  .action(newCommit);
 
 const hook = program.command("hook").description("Internal hook runners (called by git)");
 
