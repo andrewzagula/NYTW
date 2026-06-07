@@ -13,6 +13,22 @@ const SESSION_COOKIE_NAME = "__dev_user_name";
 /** Short-lived cookie holding the OAuth `state` for CSRF verification. */
 export const OAUTH_STATE_COOKIE = "__gh_oauth_state";
 
+/**
+ * Short-lived cookie holding the loopback port of a `walkthru login` CLI
+ * session. When present on the OAuth callback, the access token is handed back
+ * to the local CLI server instead of redirecting to the web dashboard.
+ */
+export const CLI_PORT_COOKIE = "__gh_cli_port";
+
+/**
+ * Stable internal user id derived from the GitHub numeric id. Used everywhere a
+ * GitHub identity is persisted (web OAuth login and the CLI `new-commit` flow)
+ * so both resolve to the same user. The numeric id survives username renames.
+ */
+export function githubUserId(githubId: number): string {
+  return `gh_${githubId}`;
+}
+
 /** Mint a session for `user` on the given response (used by the GitHub login). */
 export function setSessionCookies(
   res: NextResponse,

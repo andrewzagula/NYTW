@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { OAUTH_STATE_COOKIE } from "@/lib/auth/server";
+import { CLI_PORT_COOKIE, OAUTH_STATE_COOKIE } from "@/lib/auth/server";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -35,5 +35,18 @@ export async function GET(request: NextRequest) {
     sameSite: "lax",
     maxAge: 600, // 10 minutes — the OAuth round-trip is short.
   });
+
+  // If this flow was started by `walkthru login`, remember the CLI's loopback
+  // port so the callback can hand the token back to the terminal.
+  const cliPort = request.nextUrl.searchParams.get("cli_port");
+  if (cliPort && /^\d{1,5}$/.test(cliPort)) {
+    res.cookies.set(CLI_PORT_COOKIE, cliPort, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      maxAge: 600,
+    });
+  }
+
   return res;
 }
