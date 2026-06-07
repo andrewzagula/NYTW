@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
@@ -23,6 +25,7 @@ type ChatPanelProps = {
   owner: string;
   name: string;
   commitSha: string | null;
+  defaultCommitSha?: string | null;
   mode: "general" | "commit";
   header: string;
   commitMessage?: string | null;
@@ -35,12 +38,15 @@ export function ChatPanel({
   owner,
   name,
   commitSha,
+  defaultCommitSha,
   mode,
   header,
   commitMessage,
   suggestions,
   initialMessages,
 }: ChatPanelProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
     [],
@@ -115,11 +121,57 @@ export function ChatPanel({
     setInput("");
   }
 
+  const repoChatHref = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("commit");
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [pathname, searchParams]);
+
+  const commitChatHref = useMemo(() => {
+    const sha = commitSha ?? defaultCommitSha;
+    if (!sha) return null;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("commit", sha);
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [commitSha, defaultCommitSha, pathname, searchParams]);
+
   const panel = (
     <div className="flex h-full flex-col bg-card/20">
       {/* header */}
       <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
+          {commitChatHref && (
+            <div className="mb-2 inline-flex rounded-md border border-border bg-card/40 p-0.5 font-mono text-[10px] uppercase tracking-widest">
+              {mode === "general" ? (
+                <span className="rounded bg-vermillion/10 px-2 py-1 text-vermillion">
+                  Repo
+                </span>
+              ) : (
+                <Link
+                  href={repoChatHref}
+                  scroll={false}
+                  className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  Repo
+                </Link>
+              )}
+              {mode === "commit" ? (
+                <span className="rounded bg-vermillion/10 px-2 py-1 text-vermillion">
+                  Commit
+                </span>
+              ) : (
+                <Link
+                  href={commitChatHref}
+                  scroll={false}
+                  className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  Commit
+                </Link>
+              )}
+            </div>
+          )}
           <p className="font-mono text-[10px] uppercase tracking-widest text-vermillion">
             {mode === "commit" ? "Commit chat" : "Repo chat"}
           </p>

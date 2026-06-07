@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import {
   chatHeader,
   chatMode,
+  REPO_CHAT_THREAD_KEY,
   suggestedPrompts,
   type ChatRepo,
   type ChatCommit,
@@ -90,10 +91,15 @@ export default async function RepoTimelinePage({
   // empty timeline indicator / empty thread rather than breaking the page.
   const repoFullName = `${meta.owner}/${meta.name}`;
   const [chatShas, savedMessages] = await Promise.all([
-    getCommitsWithChats(sessionUser.id, repoFullName).catch(() => new Set<string>()),
-    commitNode
-      ? getChatMessages(sessionUser.id, repoFullName, commitNode.sha).catch(() => [])
-      : Promise.resolve([]),
+    getCommitsWithChats(sessionUser.id, repoFullName).then(
+      (shas) => new Set([...shas].filter((sha) => sha !== REPO_CHAT_THREAD_KEY)),
+      () => new Set<string>(),
+    ),
+    getChatMessages(
+      sessionUser.id,
+      repoFullName,
+      commitNode?.sha ?? REPO_CHAT_THREAD_KEY,
+    ).catch(() => []),
   ]);
 
   return (
@@ -164,10 +170,11 @@ export default async function RepoTimelinePage({
       </main>
 
       <ChatPanel
-        key={commitNode?.sha ?? "general"}
+        key={commitNode?.sha ?? REPO_CHAT_THREAD_KEY}
         owner={meta.owner}
         name={meta.name}
         commitSha={commitNode?.sha ?? null}
+        defaultCommitSha={nodes[0]?.sha ?? null}
         mode={chatMode(chatCommit)}
         header={chatHeader(chatRepo, chatCommit)}
         commitMessage={commitNode?.message ?? null}

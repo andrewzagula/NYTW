@@ -1,5 +1,7 @@
 import type { UIMessage } from "ai";
 
+export const REPO_CHAT_THREAD_KEY = "__repo__";
+
 /** Minimal repo shape the chat context needs — owner/name are required, the rest optional. */
 export type ChatRepo = {
   owner: string;
