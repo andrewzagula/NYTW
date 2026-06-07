@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { apiPost } from "../lib/api.js";
 import { getToken } from "../lib/config.js";
+import { getRepoContext } from "../lib/git.js";
 
 interface NewCommitOptions {
   message?: string;
@@ -9,6 +10,7 @@ interface NewCommitOptions {
 
 interface NewCommitResponse {
   url?: string;
+  commitUrl?: string;
 }
 
 export interface NewCommitPayload {
@@ -36,15 +38,31 @@ export async function newCommit(commitDescriptionParts: string[], options: NewCo
     process.exit(1);
   }
 
+  const { branch, remoteUrl, repository } = await getRepoContext();
+
+  // A commit URL (/repos/{owner}/{name}?commit={sha}) is only meaningful for a
+  // real commit SHA. The manual command registers an upcoming commit, so we only
+  // forward a SHA when the caller provides one that looks like a git object id.
+  const commitSha = options.commitId && /^[0-9a-f]{7,40}$/i.test(options.commitId)
+    ? options.commitId
+    : undefined;
+
   const data = await registerNewCommit({
     commitDescription,
     commitMessage: options.message,
     commitId: options.commitId,
+    commitSha,
+    repository,
+    branch,
+    remoteUrl,
     source: "manual",
   });
 
   if (data?.url) {
     console.log(`Walkthru available @ ${data.url}`);
+    if (data.commitUrl) {
+      console.log(`Commit @ ${data.commitUrl}`);
+    }
     return;
   }
 
