@@ -12,10 +12,18 @@ module.exports = {
   PERSEUS_TIMEOUT_MS: 15000,
   PERSEUS_TOP_K: 10,
 
+  // Anthropic API
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
+  ANTHROPIC_MAX_TOKENS: 500,
+  ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com",
+
   // Scoring (PRD §Module 2)
   POINTS: {
     MCQ_CORRECT: 1.0,
     MCQ_INCORRECT: 0.0,
+    FRQ_CORRECT: 1.0,
+    FRQ_PARTIAL: 0.5,
+    FRQ_INCORRECT: 0.0,
     MATCHING_ALL: 1.0,
     MATCHING_SOME: 0.5,
     MATCHING_NONE: 0.0,
