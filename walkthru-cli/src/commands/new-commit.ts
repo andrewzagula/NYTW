@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { apiPost } from "../lib/api.js";
+import { openBrowser } from "../lib/browser.js";
 import { getToken } from "../lib/config.js";
 import { getRepoContext } from "../lib/git.js";
 
@@ -59,10 +60,11 @@ export async function newCommit(commitDescriptionParts: string[], options: NewCo
   });
 
   if (data?.url) {
-    console.log(`Walkthru available @ ${data.url}`);
     if (data.commitUrl) {
-      console.log(`Commit @ ${data.commitUrl}`);
+      openBrowser(data.commitUrl);
+      console.log(`Take quiz @ ${data.commitUrl}`);
     }
+    console.log(`See answers: ${data.url}`);
     return;
   }
 
