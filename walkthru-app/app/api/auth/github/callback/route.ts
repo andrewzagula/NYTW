@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
+  CLI_PORT_COOKIE,
   OAUTH_STATE_COOKIE,
+  githubUserId,
   setSessionCookies,
   storeGithubToken,
 } from "@/lib/auth/server";
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Stable internal id derived from the GitHub numeric id (survives renames).
-  const userId = `gh_${ghUser.id}`;
+  const userId = githubUserId(ghUser.id);
 
   // 3. Persist identity + token, then mint the session cookie.
   await upsertUser(userId, {
@@ -101,6 +103,23 @@ export async function GET(request: NextRequest) {
     github_avatar: ghUser.avatar_url,
   });
   await storeGithubToken(userId, tokenData.access_token);
+
+  // If this flow was started by `walkthru login`, hand the access token back to
+  // the CLI's loopback server instead of redirecting to the web dashboard. This
+  // reuses the exact same OAuth flow the web sign-in uses (standard loopback
+  // pattern). We still mint the web session cookies so the browser is logged in.
+  const cliPort = request.cookies.get(CLI_PORT_COOKIE)?.value;
+  if (cliPort && /^\d{1,5}$/.test(cliPort)) {
+    const cliUrl = new URL(`http://127.0.0.1:${cliPort}/callback`);
+    cliUrl.searchParams.set("token", tokenData.access_token);
+    cliUrl.searchParams.set("login", ghUser.login);
+
+    const res = NextResponse.redirect(cliUrl);
+    setSessionCookies(res, { id: userId, name: ghUser.login });
+    res.cookies.delete(OAUTH_STATE_COOKIE);
+    res.cookies.delete(CLI_PORT_COOKIE);
+    return res;
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const dashboardUrl = appUrl

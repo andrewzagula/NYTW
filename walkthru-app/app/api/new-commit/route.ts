@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createNewCommitSession, upsertUser } from "@/lib/db";
+import { githubUserId } from "@/lib/auth/server";
 import { generateCommitQuiz, type NewCommitPayload } from "@/lib/quiz/generator";
 
 type GitHubUser = {
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status });
   }
 
-  const userId = `github:${githubUser.id}`;
+  const userId = githubUserId(githubUser.id);
   await upsertUser(userId, {
     github_username: githubUser.login,
     github_avatar: githubUser.avatar_url,

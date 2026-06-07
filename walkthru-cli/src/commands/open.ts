@@ -4,6 +4,7 @@ import { dirname, resolve } from "path";
 import chalk from "chalk";
 import { select } from "@inquirer/prompts";
 import simpleGit from "simple-git";
+import { appUrl } from "../lib/api.js";
 
 interface CommitChoice {
   name: string;
@@ -14,7 +15,6 @@ interface CommitChoice {
 const QUIT = "__quit__";
 const OPEN_WALKTHRU = "__open_walkthru__";
 const COMMITS = "__commits__";
-const LOGIN_URL = "http://localhost:3000/login";
 
 function findGitRoot(startDir: string): string | null {
   let current = resolve(startDir);
@@ -99,9 +99,10 @@ async function openCommits(repoRoot: string): Promise<void> {
 }
 
 function openLoginFlow(): void {
+  const loginUrl = `${appUrl()}/signin`;
   const command =
     process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
-  const args = process.platform === "win32" ? ["/c", "start", "", LOGIN_URL] : [LOGIN_URL];
+  const args = process.platform === "win32" ? ["/c", "start", "", loginUrl] : [loginUrl];
 
   const child = spawn(command, args, {
     detached: true,
@@ -109,7 +110,7 @@ function openLoginFlow(): void {
   });
   child.unref();
 
-  console.log(chalk.dim(`\n  Opening ${LOGIN_URL}\n`));
+  console.log(chalk.dim(`\n  Opening ${loginUrl}\n`));
 }
 
 export async function openWalkthru(): Promise<void> {
