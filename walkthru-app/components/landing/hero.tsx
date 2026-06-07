@@ -13,7 +13,7 @@ export function Hero() {
       <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-36 sm:px-8 sm:pb-28 sm:pt-44">
         <h1 className="max-w-4xl font-display text-5xl font-black leading-[0.95] tracking-tight text-balance sm:text-6xl lg:text-7xl">
           Understand your agent&apos;s code{" "}
-          <span className="font-sans font-normal italic underline decoration-hero-ink/60 underline-offset-16">
+          <span className="italic underline  underline-offset-16">
             intuitively
           </span>
         </h1>
