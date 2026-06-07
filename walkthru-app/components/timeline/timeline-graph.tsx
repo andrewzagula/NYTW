@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { relativeTime } from "@/lib/format";
 import { ScoreChip } from "@/components/shared/score-chip";
 import type { TimelineNode } from "@/lib/mock/timeline";
@@ -26,7 +27,15 @@ function sCurve(x0: number, y0: number, x1: number, y1: number) {
   return `M ${x0} ${y0} C ${x0} ${ym} ${x1} ${ym} ${x1} ${y1}`;
 }
 
-export function TimelineGraph({ nodes }: { nodes: TimelineNode[] }) {
+export function TimelineGraph({
+  nodes,
+  repoId,
+  activeSha,
+}: {
+  nodes: TimelineNode[];
+  repoId: string;
+  activeSha?: string;
+}) {
   const height = nodes.length * ROW;
 
   const lane0 = nodes.map((n, i) => (n.lane === 0 ? i : -1)).filter((i) => i >= 0);
@@ -116,9 +125,18 @@ export function TimelineGraph({ nodes }: { nodes: TimelineNode[] }) {
           <li
             key={n.sha}
             style={{ height: ROW, paddingLeft: GUTTER }}
-            className="flex items-center border-b border-border/40 pr-1 last:border-b-0"
+            className="border-b border-border/40 last:border-b-0"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-4">
+            <Link
+              href={`/repos/${repoId}?commit=${n.sha}`}
+              scroll={false}
+              aria-current={n.sha === activeSha ? "true" : undefined}
+              className={`flex h-full min-w-0 items-center gap-4 pr-1 transition-colors ${
+                n.sha === activeSha
+                  ? "bg-vermillion/5 shadow-[inset_3px_0_0_0_var(--color-vermillion)]"
+                  : "hover:bg-accent/40"
+              }`}
+            >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2.5">
                   <code className="rounded border border-border bg-card/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
@@ -160,7 +178,7 @@ export function TimelineGraph({ nodes }: { nodes: TimelineNode[] }) {
               <div className="w-[88px] shrink-0 text-right">
                 <ScoreChip score={n.score} />
               </div>
-            </div>
+            </Link>
           </li>
         ))}
       </ul>
