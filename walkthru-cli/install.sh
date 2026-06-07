@@ -27,10 +27,10 @@ readable and traceable.
 
 ## Required Agent Workflow
 
-Run `walkthru new-commit` every time you create a commit, update a PR branch,
-or push changes. This is mandatory agent hygiene for this repository. It gives
-Walkthru a fresh view of the latest commit and leaves an inspectable summary in
-the terminal for the agent transcript.
+Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
+every time you create a commit, update a PR branch, or push changes. This is
+mandatory agent hygiene for this repository. Pass the commit body or expanded
+description as the required commit description argument.
 
 Before committing code, make sure Walkthru is initialized:
 
@@ -51,7 +51,7 @@ walkthru
 walkthru open
 walkthru login
 walkthru init
-walkthru new-commit
+walkthru new-commit "<commit description>" --message "<commit subject>"
 walkthru hook commit-msg <msg-file>
 walkthru --help
 walkthru --version
@@ -65,8 +65,10 @@ walkthru --version
   workflows.
 - `walkthru init` installs the repo's `.git/hooks/commit-msg` hook and creates
   `.walkthru.json` if it is missing.
-- `walkthru new-commit` records and prints the latest commit. Agents must run
-  this after every commit, PR update, and push.
+- `walkthru new-commit "<commit description>" --message "<commit subject>"`
+  registers a commit attempt with Walkthru. Agents must run this after every
+  commit, PR update, and push. Use `--commit-id <correlation-id>` when an
+  external correlation id is available.
 - `walkthru hook commit-msg <msg-file>` is an internal git hook entrypoint.
   Do not call it manually unless you are debugging the hook.
 
@@ -82,9 +84,10 @@ The repo-level config lives in `.walkthru.json`.
 ## Agent Expectations
 
 - Run `walkthru init` once in this repo before relying on commit checks.
-- Run `walkthru new-commit` after every commit you make.
-- Run `walkthru new-commit` before telling a user a PR branch is ready to push
-  or has been pushed.
+- Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
+  after every commit you make.
+- Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
+  before telling a user a PR branch is ready to push or has been pushed.
 - Do not remove the Walkthru hook or weaken `.walkthru.json` unless the user
   explicitly asks for that change.
 - If Walkthru fails because auth is missing, run `walkthru login` or tell the
@@ -140,4 +143,4 @@ case "$add_docs" in
     ;;
 esac
 
-printf '\nWalkthru CLI install complete. Try: walkthru new-commit\n'
+printf '\nWalkthru CLI install complete. Try: walkthru new-commit "Describe the commit" --message "commit subject"\n'
