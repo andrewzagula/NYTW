@@ -1,26 +1,175 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-martina);
+  --font-heading: var(--font-martina);
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco,
+    "Cascadia Code", "Liberation Mono", monospace;
+
+  /* Brand + semantic score colors (utilities: bg-vermillion, text-score-high, …) */
+  --color-vermillion: #ff4d2e;
+  --color-vermillion-deep: #e8472b;
+  --color-hero-ink: #0b0b0c;
+  --color-score-low: #f43f5e;
+  --color-score-mid: #fbbf24;
+  --color-score-high: #34d399;
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Walkthru is a dark-only product. The palette below is applied to both
+ * :root and .dark (identical) and <html> carries class="dark", so the app
+ * is dark regardless and shadcn `dark:` variants stay active.
+ */
+:root,
+.dark {
+  --radius: 0.5rem;
+
+  --background: #09090b; /* zinc-950 */
+  --foreground: #fafafa; /* zinc-50  */
+
+  --card: #18181b; /* zinc-900 */
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+
+  --primary: #ff4d2e; /* vermillion */
+  --primary-foreground: #0b0b0c; /* near-black ink on red */
+
+  --secondary: #27272a; /* zinc-800 */
+  --secondary-foreground: #fafafa;
+
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa; /* zinc-400 */
+
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+
+  --destructive: #f43f5e; /* rose-500 */
+
+  --border: #27272a; /* zinc-800 */
+  --input: #27272a;
+  --ring: #ff4d2e; /* vermillion focus ring */
+
+  --chart-1: #ff4d2e;
+  --chart-2: #fbbf24;
+  --chart-3: #34d399;
+  --chart-4: #f43f5e;
+  --chart-5: #a1a1aa;
+
+  --sidebar: #18181b;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #ff4d2e;
+  --sidebar-primary-foreground: #0b0b0c;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #ff4d2e;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  html {
+    @apply font-sans;
+  }
+  ::selection {
+    background: #ff4d2e;
+    color: #0b0b0c;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Faint grid on dark sections */
+  .bg-grid-dark {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+  /* Darker grid texture over the red hero */
+  .bg-grid-hero {
+    background-image:
+      linear-gradient(to right, rgba(11, 11, 12, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(11, 11, 12, 0.08) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+  /* Dotted texture for data-motif backdrops */
+  .bg-dots-dark {
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.07) 1px,
+      transparent 1px
+    );
+    background-size: 18px 18px;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* RIG-style value-prop ticker */
+@keyframes walkthru-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-ticker {
+  animation: walkthru-ticker 32s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker {
+    animation: none;
+  }
 }
