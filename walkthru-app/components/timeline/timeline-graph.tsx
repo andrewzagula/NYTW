@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { relativeTime } from "@/lib/format";
 import { ScoreChip } from "@/components/shared/score-chip";
-import type { TimelineNode } from "@/lib/mock/timeline";
+import type { TimelineNode } from "@/lib/timeline/types";
 
 const ROW = 92; // px height per commit row
 const GUTTER = 76; // px width of the graph gutter
@@ -29,11 +29,13 @@ function sCurve(x0: number, y0: number, x1: number, y1: number) {
 
 export function TimelineGraph({
   nodes,
-  repoId,
+  owner,
+  name,
   activeSha,
 }: {
   nodes: TimelineNode[];
-  repoId: string;
+  owner: string;
+  name: string;
   activeSha?: string;
 }) {
   const height = nodes.length * ROW;
@@ -128,7 +130,7 @@ export function TimelineGraph({
             className="border-b border-border/40 last:border-b-0"
           >
             <Link
-              href={`/repos/${repoId}?commit=${n.sha}`}
+              href={`/repos/${owner}/${name}?commit=${n.sha}`}
               scroll={false}
               aria-current={n.sha === activeSha ? "true" : undefined}
               className={`flex h-full min-w-0 items-center gap-4 pr-1 transition-colors ${

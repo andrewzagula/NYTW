@@ -76,5 +76,5 @@ export async function GET(request: NextRequest) {
     // non-fatal — token is stored, profile upsert can be retried later
   }
 
-  return NextResponse.redirect(new URL("/test", request.url));
+  return NextResponse.redirect(new URL("/dashboard", request.url));
 }

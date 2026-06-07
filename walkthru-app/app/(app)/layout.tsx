@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function FullScreenLoader() {
   return (
@@ -24,20 +24,23 @@ function FullScreenLoader() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, needsGithub, signOut } = useAuth();
 
   useEffect(() => {
     if (loading) return;
-    if (!user) router.replace("/signin");
-    else if (!user.githubConnected) router.replace("/connect-github");
-  }, [loading, user, router]);
+    if (!user) {
+      router.replace(needsGithub ? "/connect-github" : "/signin");
+    }
+  }, [loading, user, needsGithub, router]);
 
-  if (loading || !user || !user.githubConnected) return <FullScreenLoader />;
+  if (loading || !user) return <FullScreenLoader />;
 
-  function handleSignOut() {
-    signOut();
+  async function handleSignOut() {
+    await signOut();
     router.replace("/");
   }
+
+  const displayName = user.githubUsername || user.name;
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,21 +51,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent">
               <Avatar className="h-7 w-7">
+                {user.githubAvatar && (
+                  <AvatarImage src={user.githubAvatar} alt={displayName} />
+                )}
                 <AvatarFallback className="bg-vermillion text-xs font-medium text-hero-ink">
-                  {initials(user.name)}
+                  {initials(displayName)}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden text-sm font-medium sm:inline">
-                {user.name}
+                {displayName}
               </span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex flex-col gap-0.5 px-1.5 py-1.5">
-                <span className="text-sm font-medium">{user.name}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {user.email}
-                </span>
+                <span className="text-sm font-medium">{displayName}</span>
+                {user.githubUsername && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    @{user.githubUsername}
+                  </span>
+                )}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>

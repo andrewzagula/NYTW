@@ -6,34 +6,23 @@ import {
   lastUserText,
   scriptedMockAnswer,
   suggestedPrompts,
-  type PerseusHit,
+  type ChatRepo,
+  type ChatCommit,
 } from "@/lib/chat/context";
-import type { MockRepo } from "@/lib/mock/repos";
-import type { TimelineNode } from "@/lib/mock/timeline";
 
-const repo: MockRepo = {
-  id: "checkout-service",
+const repo: ChatRepo = {
   owner: "northwind",
   name: "checkout-service",
   description: "Payments + cart orchestration for the storefront.",
   defaultBranch: "main",
-  branchCount: 7,
-  openPrs: 3,
   language: "TypeScript",
-  lastActivity: "2026-06-07T00:00:00.000Z",
-  teamScore: 82,
 };
 
-const commit: TimelineNode = {
-  sha: "a91c4e8",
+const commit: ChatCommit = {
+  sha: "a91c4e8abc",
   message: "Replace TTL cache with LRU eviction",
-  author: { name: "Priya Menon", initials: "PM" },
-  date: "2026-06-06T00:00:00.000Z",
+  author: "Priya Menon",
   branch: "feat/lru-cache",
-  lane: 1,
-  parents: ["e5b9c20"],
-  score: 74,
-  type: "commit",
 };
 
 function userMsg(text: string): UIMessage {
@@ -62,23 +51,24 @@ describe("suggestedPrompts", () => {
 });
 
 describe("buildSystemPrompt", () => {
-  it("includes repo identity and notes missing retrieval", () => {
-    const sys = buildSystemPrompt(repo, null, []);
+  it("includes repo identity", () => {
+    const sys = buildSystemPrompt(repo, null);
     expect(sys).toContain("northwind/checkout-service");
-    expect(sys).toMatch(/no retrieved code snippets/i);
+    expect(sys).toContain("TypeScript");
   });
   it("includes the commit sha and message in commit mode", () => {
-    const sys = buildSystemPrompt(repo, commit, []);
-    expect(sys).toContain("a91c4e8");
+    const sys = buildSystemPrompt(repo, commit);
+    expect(sys).toContain("a91c4e8abc");
     expect(sys).toContain("Replace TTL cache with LRU eviction");
   });
-  it("embeds Perseus hits when present", () => {
-    const hits: PerseusHit[] = [
-      { path: "src/cache.ts", lineStart: 10, lineEnd: 20, snippet: "class LruCache {}" },
-    ];
-    const sys = buildSystemPrompt(repo, null, hits);
-    expect(sys).toContain("src/cache.ts:10-20");
-    expect(sys).toContain("class LruCache {}");
+  it("embeds the diff when present", () => {
+    const sys = buildSystemPrompt(repo, { ...commit, diff: "+ const x = 1;" });
+    expect(sys).toContain("+ const x = 1;");
+    expect(sys).toMatch(/```diff/);
+  });
+  it("notes a missing diff in commit mode", () => {
+    const sys = buildSystemPrompt(repo, commit);
+    expect(sys).toMatch(/no diff/i);
   });
 });
 

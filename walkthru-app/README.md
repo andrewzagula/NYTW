@@ -40,9 +40,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000/test](http://localhost:3000/test) to use the test page.
+Open [http://localhost:3000](http://localhost:3000) and click **Get started**. You'll land on `/signin` → GitHub OAuth → `/dashboard`.
 
-Because Replit Auth works via injected headers (`X-Replit-User-Id`, `X-Replit-User-Name`), local dev won't have a real Replit identity. To test locally, use a reverse proxy or curl with fake headers:
+Because Replit Auth works via injected headers (`X-Replit-User-Id`, `X-Replit-User-Name`), local dev won't have a real Replit identity. Use the unlisted developer shortcut at [http://localhost:3000/dev-login](http://localhost:3000/dev-login) to set a dev session cookie, or curl with fake headers:
 
 ```bash
 # Test status endpoint with fake Replit headers
@@ -54,9 +54,9 @@ curl -H "X-Replit-User-Id: test123" -H "X-Replit-User-Name: testuser" \
 
 1. Add the four environment variables as Replit Secrets
 2. Click **Run** — `npm run dev` starts automatically
-3. Visit the `/test` route on your Replit app URL
-4. Sign in via Replit (automatic on Replit), then click **Connect GitHub**
-5. After OAuth, you'll be redirected back to `/test` with GitHub connected
+3. Visit the root of your Replit app URL
+4. Sign in (automatic on Replit), then click **Continue with GitHub**
+5. After OAuth, you'll land on `/dashboard` with GitHub connected
 
 ## API Routes
 
@@ -64,6 +64,11 @@ curl -H "X-Replit-User-Id: test123" -H "X-Replit-User-Name: testuser" \
 |---|---|---|
 | `GET /api/auth/github` | none | Redirects to GitHub OAuth |
 | `GET /api/auth/github/callback` | Replit header | Exchanges code for token, stores it |
+| `POST /api/auth/github/disconnect` | Replit header | Clears the stored GitHub token + user row |
 | `GET /api/auth/status` | none | `{ replit_authed, github_connected, username }` |
-| `GET /api/repos` | Replit + GitHub | Returns 20 most-recent repos |
+| `GET /api/user/profile` | Replit header | Returns the current user + their connected repos |
+| `GET /api/repos` | Replit + GitHub | Returns 20 most-recent GitHub repos |
+| `POST /api/repos/select` | Replit + GitHub | `{ owner, name }` → connects the repo for the user |
 | `GET /api/commits?owner=&repo=&limit=` | Replit + GitHub | Returns up to `limit` commits (default 500) |
+| `GET /api/commits/[sha]?owner=&repo=` | Replit + GitHub | Returns the commit's diff + stats |
+| `POST /api/chat` | Replit + GitHub | Streams an AI answer about a repo or commit |
