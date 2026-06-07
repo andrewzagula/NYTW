@@ -13,6 +13,13 @@ export type MockRepo = {
   lastActivity: string;
   /** Rolling team comprehension score, 0–100. */
   teamScore: number;
+  /**
+   * Perseus index id for this repo, set by the connect/webhook indexing jobs.
+   * Left unset for mocks; when present (and ANTHROPIC_API_KEY is set), the chat
+   * route grounds answers in real retrieval. One mock MAY point at a real public
+   * repo's index id to demo real mode.
+   */
+  perseusIndexId?: string;
 };
 
 const DAY = 24 * 60 * 60 * 1000;

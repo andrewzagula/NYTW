@@ -129,3 +129,7 @@ export function getTimeline(_repoId: string): TimelineNode[] {
 export function getBranches(_repoId: string): string[] {
   return ["main", FEATURE];
 }
+
+export function getCommit(_repoId: string, sha: string): TimelineNode | undefined {
+  return canonical.find((n) => n.sha === sha);
+}
