@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import { RepoCard, type ConnectedRepoCardData } from "@/components/dashboard/repo-card";
-import { CornerBracket } from "@/components/shared/corner-bracket";
 import { relativeTime } from "@/lib/format";
 
 type ApiConnectedRepo = {
@@ -20,19 +19,6 @@ type ApiGithubRepo = {
   updated_at: string;
   description: string | null;
 };
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <CornerBracket color="border-vermillion/50" className="px-5 py-4">
-      <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-    </CornerBracket>
-  );
-}
 
 function splitFullName(fullName: string): { owner: string; name: string } {
   const slash = fullName.indexOf("/");
@@ -159,7 +145,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-widest text-vermillion">
-            ◢ Dashboard
+            Dashboard
           </p>
           <h1 className="mt-2 font-display text-4xl font-black tracking-tight">
             Your repositories
@@ -171,13 +157,13 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="Repos" value={connected === null ? "—" : String(connectedCount)} />
-          <Stat
-            label="Avg score"
-            value={overallAvgPercent === null ? "—" : `${overallAvgPercent}%`}
-          />
-          <Stat label="Open PRs" value="—" />
+        <div className="min-w-24 text-right">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            Repos
+          </p>
+          <p className="mt-1.5 font-mono text-2xl font-semibold tabular-nums text-foreground">
+            {connected === null ? "—" : String(connectedCount)}
+          </p>
         </div>
       </div>
 
