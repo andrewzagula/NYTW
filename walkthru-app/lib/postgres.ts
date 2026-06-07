@@ -39,10 +39,25 @@ export async function initDb(): Promise<void> {
       id         TEXT PRIMARY KEY,
       user_id    TEXT NOT NULL,
       repo       TEXT NOT NULL,
+      commit_sha TEXT,
+      commit_id  TEXT,
+      commit_message TEXT,
+      commit_description TEXT,
+      branch     TEXT,
+      remote_url TEXT,
+      source     TEXT,
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       score      INTEGER NOT NULL DEFAULT 0,
       total      INTEGER NOT NULL DEFAULT 0
     );
+
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS commit_sha TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS commit_id TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS commit_message TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS commit_description TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS branch TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS remote_url TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source TEXT;
 
     CREATE TABLE IF NOT EXISTS attempts (
       id         SERIAL PRIMARY KEY,
@@ -51,6 +66,19 @@ export async function initDb(): Promise<void> {
       correct    BOOLEAN NOT NULL,
       hint       TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+      id              SERIAL PRIMARY KEY,
+      session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      question_order  INTEGER NOT NULL,
+      question        TEXT NOT NULL,
+      expected_answer TEXT NOT NULL,
+      explanation     TEXT NOT NULL,
+      context_summary TEXT,
+      snippets        JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (session_id, question_order)
     );
   `);
 }
