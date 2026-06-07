@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Timeline, type CommitSummaryEntry } from "./components/Timeline";
 
 interface AuthStatus {
   replit_authed: boolean;
@@ -84,9 +83,6 @@ export default function TestPage() {
   const [openSha, setOpenSha] = useState<string | null>(null);
   const [diffs, setDiffs] = useState<Record<string, CommitDetail | { error: string }>>({});
   const [diffLoading, setDiffLoading] = useState<string | null>(null);
-  const [summary, setSummary] = useState<CommitSummaryEntry[] | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
@@ -127,8 +123,6 @@ export default function TestPage() {
     setCommits(null);
     setOpenSha(null);
     setDiffs({});
-    setSummary(null);
-    setSummaryError(null);
     try {
       const r = await fetch(
         `/api/commits?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
@@ -147,34 +141,6 @@ export default function TestPage() {
       return;
     }
     setLoading(false);
-
-    setSummaryLoading(true);
-    try {
-      const r = await fetch(
-        `/api/commits-summary?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
-      );
-      const data = await r.json();
-      if (!r.ok) {
-        setSummaryError(data.error ?? "Request failed");
-      } else {
-        setSummary(data.summary as CommitSummaryEntry[]);
-      }
-    } catch {
-      setSummaryError("Network error");
-    }
-    setSummaryLoading(false);
-  }
-
-  function scrollToCommit(sha: string) {
-    const el = document.getElementById(`c-${sha}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.classList.add("ring-2", "ring-yellow-400");
-      setTimeout(
-        () => el.classList.remove("ring-2", "ring-yellow-400"),
-        1000
-      );
-    }
   }
 
   async function fetchRepos() {
@@ -202,8 +168,6 @@ export default function TestPage() {
     setCommitTotal(null);
     setOpenSha(null);
     setDiffs({});
-    setSummary(null);
-    setSummaryError(null);
   }
 
   async function connectRepo(fullName: string) {
@@ -503,14 +467,6 @@ export default function TestPage() {
                     })}
                     </ul>
                   </div>
-                  <aside className="w-full md:w-[220px] shrink-0 md:sticky md:top-4">
-                    <Timeline
-                      summary={summary}
-                      loading={summaryLoading}
-                      error={summaryError}
-                      onSelectCommit={scrollToCommit}
-                    />
-                  </aside>
                 </div>
               )}
             </div>
