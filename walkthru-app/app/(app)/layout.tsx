@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -59,12 +58,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5 px-1.5 py-1.5">
                 <span className="text-sm font-medium">{user.name}</span>
                 <span className="text-xs font-normal text-muted-foreground">
                   {user.email}
                 </span>
-              </DropdownMenuLabel>
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
