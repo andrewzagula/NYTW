@@ -1,142 +1,171 @@
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
-import simpleGit from "simple-git";
-import { input } from "@inquirer/prompts";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { dirname, join } from "path";
 import chalk from "chalk";
-import { getToken } from "../lib/config.js";
+import simpleGit, { SimpleGit } from "simple-git";
+import { registerNewCommit } from "../commands/new-commit.js";
 
 interface WalkthruConfig {
-  threshold: number;
-  allowOverride: boolean;
-  overrideRequiresNote: boolean;
-  questionTypes: string[];
-  exemptPaths: string[];
-  minDiffLines: number;
+  includeDiff?: boolean;
+  maxDiffBytes?: number;
 }
 
-interface QuestionResponse {
-  question: string;
-  questionId: string;
+interface CommitDetails {
+  sha: string;
+  subject: string;
+  body: string;
+  message: string;
+  description: string;
+  diff?: string;
+  branch?: string;
+  remoteUrl?: string;
+  repository?: string;
 }
 
-interface GradeResponse {
-  score: number;
-  feedback: string;
-}
+const DEFAULT_CONFIG: Required<WalkthruConfig> = {
+  includeDiff: true,
+  maxDiffBytes: 120_000,
+};
 
-const WALKTHRU_API = "https://walkthru.dev/api";
+const ZERO_SHA = /^0+$/;
 
-function loadConfig(): WalkthruConfig {
+function loadConfig(): Required<WalkthruConfig> {
   const configPath = join(process.cwd(), ".walkthru.json");
-  if (!existsSync(configPath)) {
-    return {
-      threshold: 70,
-      allowOverride: true,
-      overrideRequiresNote: true,
-      questionTypes: ["explain", "impact", "risk"],
-      exemptPaths: ["*.md", "*.lock", "generated/**"],
-      minDiffLines: 10,
-    };
-  }
-  return JSON.parse(readFileSync(configPath, "utf-8"));
-}
+  if (!existsSync(configPath)) return DEFAULT_CONFIG;
 
-function isExempt(file: string, patterns: string[]): boolean {
-  return patterns.some((pattern) => {
-    const re = new RegExp(
-      "^" + pattern.replace(/\./g, "\\.").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*") + "$"
-    );
-    return re.test(file);
-  });
-}
-
-async function apiPost<T>(path: string, token: string, body: unknown): Promise<T | null> {
   try {
-    const res = await fetch(`${WALKTHRU_API}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return res.json() as Promise<T>;
+    return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(configPath, "utf-8")) };
   } catch {
-    return null;
+    return DEFAULT_CONFIG;
   }
 }
 
-export async function runCommitGate(msgFile: string) {
+function truncate(value: string, maxBytes: number): string {
+  const bytes = Buffer.byteLength(value);
+  if (bytes <= maxBytes) return value;
+
+  let output = value;
+  while (Buffer.byteLength(output) > maxBytes) {
+    output = output.slice(0, Math.floor(output.length * 0.9));
+  }
+  return `${output}\n\n[Walkthru truncated diff from ${bytes} bytes to ${maxBytes} bytes]`;
+}
+
+async function optionalGit(git: SimpleGit, args: string[]): Promise<string | undefined> {
+  try {
+    const value = (await git.raw(args)).trim();
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function registeredPath(git: SimpleGit): Promise<string> {
+  const path = await git.raw(["rev-parse", "--git-path", "walkthru/registered-commits.json"]);
+  return path.trim();
+}
+
+async function readRegistered(git: SimpleGit): Promise<Set<string>> {
+  const path = await registeredPath(git);
+  if (!existsSync(path)) return new Set();
+
+  try {
+    const values = JSON.parse(readFileSync(path, "utf-8"));
+    return new Set(Array.isArray(values) ? values : []);
+  } catch {
+    return new Set();
+  }
+}
+
+async function markRegistered(git: SimpleGit, sha: string): Promise<void> {
+  const path = await registeredPath(git);
+  const registered = await readRegistered(git);
+  registered.add(sha);
+
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify([...registered].sort(), null, 2));
+}
+
+async function getCommitDetails(git: SimpleGit, sha: string): Promise<CommitDetails> {
   const config = loadConfig();
-  const token = await getToken();
+  const rawMessage = await git.raw(["show", "--quiet", "--format=%s%n%n%b", sha]);
+  const message = rawMessage.trim();
+  const [subject = "", ...bodyParts] = message.split(/\n\n/);
+  const body = bodyParts.join("\n\n").trim();
+  const branch = await optionalGit(git, ["branch", "--show-current"]);
+  const remoteUrl = await optionalGit(git, ["config", "--get", "remote.origin.url"]);
+  const topLevel = await optionalGit(git, ["rev-parse", "--show-toplevel"]);
+  const repository = topLevel ? topLevel.split("/").filter(Boolean).pop() : undefined;
+  const diff = config.includeDiff
+    ? truncate(await git.raw(["show", "--format=", "--no-ext-diff", sha]), config.maxDiffBytes)
+    : undefined;
 
-  if (!token) {
-    console.error(chalk.red("\n  Run `walkthru login` first.\n"));
-    process.exit(1);
+  return {
+    sha,
+    subject,
+    body,
+    message,
+    description: body || subject || `Commit ${sha}`,
+    diff,
+    branch,
+    remoteUrl,
+    repository,
+  };
+}
+
+async function registerCommit(git: SimpleGit, sha: string, source: "post-commit" | "pre-push"): Promise<void> {
+  const registered = await readRegistered(git);
+  if (registered.has(sha)) return;
+
+  const details = await getCommitDetails(git, sha);
+  const data = await registerNewCommit({
+    commitDescription: details.description,
+    commitMessage: details.subject,
+    commitId: sha,
+    commitSha: sha,
+    repository: details.repository,
+    branch: details.branch,
+    remoteUrl: details.remoteUrl,
+    diff: details.diff,
+    source,
+  });
+
+  if (!data?.url) {
+    console.log(chalk.dim(`Walkthru unavailable for ${sha.slice(0, 7)}; Git will continue.`));
+    return;
   }
 
+  await markRegistered(git, sha);
+  console.log(chalk.green(`Walkthru quiz for ${sha.slice(0, 7)}: ${data.url}`));
+}
+
+export async function runPostCommitHook(): Promise<void> {
   const git = simpleGit();
-  const diff = await git.diff(["--cached"]);
-  const changedFiles = (await git.diff(["--cached", "--name-only"])).trim().split("\n").filter(Boolean);
-  const commitMessage = readFileSync(msgFile, "utf-8").trim();
+  const sha = (await git.revparse(["HEAD"])).trim();
+  await registerCommit(git, sha, "post-commit");
+}
 
-  const diffLines = diff.split("\n").filter((l) => l.startsWith("+") || l.startsWith("-")).length;
-  const allExempt = changedFiles.every((f) => isExempt(f, config.exemptPaths));
-
-  if (allExempt || diffLines < config.minDiffLines) {
-    process.exit(0);
-  }
-
-  console.log(chalk.bold("\n  Walkthru — comprehension gate\n"));
-  console.log(chalk.dim(`  Staged: ${diffLines} lines across ${changedFiles.length} file(s)\n`));
-
-  const questionData = await apiPost<QuestionResponse>("/question", token, {
-    diff,
-    commitMessage,
-    questionTypes: config.questionTypes,
+export async function runPrePushHook(): Promise<void> {
+  const git = simpleGit();
+  const input = await new Promise<string>((resolve) => {
+    let data = "";
+    process.stdin.setEncoding("utf-8");
+    process.stdin.on("data", (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on("end", () => resolve(data));
   });
 
-  if (!questionData) {
-    console.log(chalk.dim("  Could not reach Walkthru API. Commit proceeding.\n"));
-    process.exit(0);
-  }
+  for (const line of input.split("\n").map((value) => value.trim()).filter(Boolean)) {
+    const [, localSha, , remoteSha] = line.split(/\s+/);
+    if (!localSha || ZERO_SHA.test(localSha)) continue;
 
-  const { question, questionId } = questionData;
-  console.log(chalk.bold("  Q:"), question, "\n");
+    const revListArgs = remoteSha && !ZERO_SHA.test(remoteSha)
+      ? ["rev-list", "--reverse", `${remoteSha}..${localSha}`]
+      : ["rev-list", "--reverse", "--max-count=1", localSha];
 
-  const answer = await input({ message: "A:" });
-  console.log();
-
-  const gradeData = await apiPost<GradeResponse>("/grade", token, {
-    questionId,
-    answer,
-    diff,
-  });
-
-  if (!gradeData) {
-    console.log(chalk.dim("  Could not grade. Commit proceeding.\n"));
-    process.exit(0);
-  }
-
-  const { score, feedback } = gradeData;
-  const scoreColor = score >= config.threshold ? chalk.green : chalk.red;
-
-  console.log(`  Score: ${scoreColor(`${score}/100`)}\n`);
-  console.log(chalk.dim(`  "${feedback}"\n`));
-
-  if (score >= config.threshold) {
-    console.log(chalk.green("  Commit proceeding...\n"));
-    process.exit(0);
-  }
-
-  if (config.allowOverride) {
-    const skip = await input({ message: "Score below threshold. Override? (y/N):" });
-    if (skip.toLowerCase() === "y") {
-      if (config.overrideRequiresNote) {
-        await input({ message: "Reason for override:" });
-      }
-      process.exit(0);
+    const commits = (await git.raw(revListArgs)).trim().split("\n").filter(Boolean);
+    for (const sha of commits) {
+      await registerCommit(git, sha, "pre-push");
     }
   }
-
-  console.log(chalk.red("\n  Commit blocked. Try again.\n"));
-  process.exit(1);
 }
