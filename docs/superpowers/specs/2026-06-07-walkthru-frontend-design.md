@@ -73,7 +73,6 @@ Three roles, two loaded webfonts:
 - **Display — Martina Plantijn** (serif), loaded local from `public/` via `next/font/local`, mapped to a `--font-display` variable. Used for hero + section headlines at **Black/Bold** weight, large sizes (hero `text-6xl`+, sections `text-4xl`), `tracking-tight`. An editorial serif headline against the technical red/dark gives Walkthru a premium edge — a deliberate move away from the RIG grotesque.
 - **UI/body — Inter**, via `next/font/google`, mapped to `--font-sans`. All nav, body copy, buttons, form fields, card text, metadata.
 - **Mono — system stack** (`ui-monospace, "SF Mono", Menlo, monospace`), mapped to `--font-mono`. Used for: the `◢ walkthru` wordmark, SHAs, CLI commands, config keys, timeline branch/commit labels, score numerals, and the **uppercase micro-labels in vermillion** (eyebrows like "THE PROBLEM", card kickers, ticker items, stat labels) — a signature element. No font download.
-- The `martina-plantijn-font-family/` files are **trial weights** (`Test…`, see `Befonts-License.txt`) — fine for development; a production license is required before shipping.
 
 ### Other tokens
 
@@ -252,7 +251,6 @@ RIG-style structure: a full-bleed **red hero** that hard-cuts into a **black bod
 
 - Brand wordmark mark (`◢`) — placeholder; can refine later.
 - Monospace for code/labels — defaults to the system mono stack (no third webfont). Drop entirely (code in Inter) only if the user prefers zero mono.
-- Martina Plantijn is a **trial license** — production use needs a proper license.
 - Score "low" color — rose by default; fall back to a muted/dim chip if rose reads too close to the vermillion brand.
 - Exact landing headline/subhead copy — draft in build, easy to tweak.
 - Whether Connect GitHub is skippable — default to required; revisit if onboarding needs a softer path.
