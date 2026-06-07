@@ -14,7 +14,8 @@ import { queryIndex } from "@/lib/perseus";
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
 
-// claude-api skill default. No temperature/budget_tokens (both 400 on Opus 4.8).
+// claude-api skill default. Opus 4.8 rejects temperature/top_p/budget_tokens with
+// a 400, so streamText is given only model/system/messages below.
 const MODEL = process.env.WALKTHRU_CHAT_MODEL ?? "claude-opus-4-8";
 
 type ChatRequest = {
@@ -24,7 +25,16 @@ type ChatRequest = {
 };
 
 export async function POST(req: Request) {
-  const { messages, repoId, commit }: ChatRequest = await req.json();
+  let body: ChatRequest;
+  try {
+    body = (await req.json()) as ChatRequest;
+  } catch {
+    return new Response("Invalid request body.", { status: 400 });
+  }
+  const { messages, repoId, commit } = body;
+  if (!Array.isArray(messages)) {
+    return new Response("messages must be an array.", { status: 400 });
+  }
 
   const repo = repoId ? getRepo(repoId) : undefined;
 
@@ -46,6 +56,7 @@ export async function POST(req: Request) {
   }
 
   let hits: PerseusHit[] = [];
+  // Re-check here: Boolean(...) above doesn't narrow string | undefined → string.
   if (repo.perseusIndexId) {
     // queryIndex never throws — a miss returns [] and we answer without code context.
     hits = await queryIndex(repo.perseusIndexId, question);
