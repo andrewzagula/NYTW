@@ -1,6 +1,6 @@
 import type { StoredMcqQuestion } from "@/lib/db";
 
-export const MAX_QUESTIONS = 6;
+export const MAX_QUESTIONS = 3;
 export const INITIAL_QUESTION_COUNT = 3;
 
 export type PublicQuestion = {

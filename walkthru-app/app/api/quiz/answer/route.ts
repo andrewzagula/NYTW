@@ -1,12 +1,10 @@
-import { getSessionUser, getGithubToken } from "@/lib/auth/server";
+import { getSessionUser } from "@/lib/auth/server";
 import {
-  appendQuizQuestion,
   finishQuizSession,
   getActiveQuizSession,
   recordMcqAttempt,
 } from "@/lib/db";
-import { generateFollowUpMcq, gradeMcq, type Choice } from "@/lib/quiz/mcq";
-import { loadGenInput } from "@/lib/quiz/diff";
+import { gradeMcq } from "@/lib/quiz/mcq";
 import { deriveQuizState } from "@/lib/quiz/state";
 import { MAX_QUESTIONS } from "@/lib/quiz/api-shape";
 
@@ -71,40 +69,13 @@ export async function POST(req: Request) {
     choice: choiceLetter,
   });
 
-  // If still under the cap and they got it wrong, generate one easier follow-up.
-  const totalAfter = session.questions.length;
-  if (!correct && totalAfter < MAX_QUESTIONS) {
-    const token = await getGithubToken(user.id);
-    if (token) {
-      try {
-        const genInput = await loadGenInput(owner, name, commitSha, token);
-        const followUp = await generateFollowUpMcq(
-          genInput,
-          {
-            questionId: `q${question.questionOrder}`,
-            question: question.question,
-            options: question.options,
-            correctAnswer: question.correctAnswer as Choice,
-            explanation: question.explanation,
-            difficulty: question.difficulty,
-          },
-          { difficulty: "easy" },
-        );
-        await appendQuizQuestion(session.sessionId, followUp, question.id);
-      } catch (err) {
-        // Generation failure shouldn't block the quiz; we just won't add a
-        // follow-up. The session will simply move to the next question or finish.
-        console.error("Follow-up generation failed:", err);
-      }
-    }
-  }
-
   const refreshed = await getActiveQuizSession(user.id, repo, commitSha);
   if (!refreshed) return Response.json({ error: "Session vanished" }, { status: 500 });
 
   const next = refreshed.questions
     .slice()
     .sort((a, b) => a.questionOrder - b.questionOrder)
+    .slice(0, MAX_QUESTIONS)
     .find((q) => !refreshed.attempts.some((a) => a.question === q.question));
 
   if (!next) {

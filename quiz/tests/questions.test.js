@@ -47,9 +47,9 @@ test("buildGenPrompt mentions pairs for matching mode", () => {
 });
 
 // --- parseGenResponse ---
-test("parseGenResponse parses MCQ fixture into 5 questions", () => {
+test("parseGenResponse parses MCQ fixture into 3 questions", () => {
   const qs = parseGenResponse(MCQ_FIXTURE, "mcq");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
   assert.equal(qs[0].type, "mcq");
   assert.equal(qs[0].correct_answer, "A");
   assert.ok(qs[0].options);
@@ -57,7 +57,7 @@ test("parseGenResponse parses MCQ fixture into 5 questions", () => {
 
 test("parseGenResponse parses FRQ fixture", () => {
   const qs = parseGenResponse(FRQ_FIXTURE, "frq");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
   assert.equal(qs[0].type, "frq");
   assert.ok(qs[0].rubric);
   assert.ok(qs[0].perseus_query);
@@ -65,7 +65,7 @@ test("parseGenResponse parses FRQ fixture", () => {
 
 test("parseGenResponse parses Matching fixture", () => {
   const qs = parseGenResponse(MATCHING_FIXTURE, "matching");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
   assert.equal(qs[0].type, "matching");
   assert.deepEqual(qs[0].correct_answer, { retryRequest: "api.js", fetchWithTimeout: "utils.js" });
 });
@@ -73,20 +73,20 @@ test("parseGenResponse parses Matching fixture", () => {
 test("parseGenResponse strips markdown code fences", () => {
   const raw = "```json\n" + MCQ_FIXTURE + "\n```";
   const qs = parseGenResponse(raw, "mcq");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
 });
 
-test("parseGenResponse caps at 5 even if LLM returns more", () => {
+test("parseGenResponse caps at 3 even if LLM returns more", () => {
   const extra = JSON.parse(MCQ_FIXTURE);
   extra.push({ ...extra[0], question_id: "q6" });
   const qs = parseGenResponse(JSON.stringify(extra), "mcq");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
 });
 
 test("parseGenResponse accepts { questions: [...] } wrapper", () => {
   const wrapped = JSON.stringify({ questions: JSON.parse(FRQ_FIXTURE) });
   const qs = parseGenResponse(wrapped, "frq");
-  assert.equal(qs.length, 5);
+  assert.equal(qs.length, 3);
 });
 
 test("parseGenResponse throws on empty array", () => {
@@ -105,7 +105,7 @@ test("generateQuestions returns questions on success", async () => {
     { diff: "diff --git a/config.js", mode: "frq" },
     { callLlm: async () => FRQ_FIXTURE },
   );
-  assert.equal(r.questions.length, 5);
+  assert.equal(r.questions.length, 3);
   assert.equal(r.error, undefined);
 });
 

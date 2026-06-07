@@ -53,6 +53,8 @@ export function ChatPanel({
     return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : MIN_WIDTH + 80;
   }); // desktop panel width (px)
   const resizingRef = useRef(false);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const resizeRightEdgeRef = useRef(0);
 
   // Persist width changes.
   useEffect(() => {
@@ -71,6 +73,8 @@ export function ChatPanel({
   // Drag-to-resize the desktop panel width.
   const startResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    resizeRightEdgeRef.current =
+      panelRef.current?.getBoundingClientRect().right ?? window.innerWidth;
     resizingRef.current = true;
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
@@ -79,8 +83,9 @@ export function ChatPanel({
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if (!resizingRef.current) return;
-      const next = window.innerWidth - e.clientX;
-      const max = Math.min(MAX_WIDTH, window.innerWidth - 360);
+      const rightEdge = resizeRightEdgeRef.current || window.innerWidth;
+      const next = rightEdge - e.clientX;
+      const max = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, rightEdge - 360));
       setWidth(Math.min(max, Math.max(MIN_WIDTH, next)));
     };
     const onUp = () => {
@@ -207,11 +212,12 @@ export function ChatPanel({
   return (
     <>
       <aside
+        ref={panelRef}
         className={cn(
           "hidden shrink-0 border-l border-border lg:block",
           collapsed && "lg:w-0 lg:border-l-0",
         )}
-        style={!collapsed && !fullscreen ? { width } : undefined}
+        style={!collapsed && !fullscreen ? { flexBasis: width, width } : undefined}
       >
         {!collapsed && !fullscreen && (
           <div className="sticky top-16 h-[calc(100vh-4rem)]">

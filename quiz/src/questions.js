@@ -3,7 +3,7 @@
 /**
  * Module — Question Generation via Anthropic API.
  *
- * Generates 5 questions for a quiz session given the git diff and chosen mode.
+ * Generates 3 questions for a quiz session given the git diff and chosen mode.
  * Called once at session start; the returned questions are shown one at a time.
  *
  * Each mode produces a different question shape:
@@ -70,19 +70,19 @@ Format per question:
  * @returns {string}
  */
 function buildGenPrompt(diff, mode) {
-  return `Generate exactly 5 ${mode.toUpperCase()} questions about this git diff.
+  return `Generate exactly 3 ${mode.toUpperCase()} questions about this git diff.
 Questions should test genuine code comprehension — what changed, why, and implications.
 
 ${MODE_FORMATS[mode]}
 
-Return a JSON array of exactly 5 question objects: [ {...}, {...}, {...}, {...}, {...} ]
+Return a JSON array of exactly 3 question objects: [ {...}, {...}, {...} ]
 
 Git diff:
 ${diff || "(empty diff)"}`;
 }
 
 /**
- * Parse the generation response into a validated array of 5 questions.
+ * Parse the generation response into a validated array of 3 questions.
  * @param {string} text
  * @param {"mcq"|"matching"|"frq"} mode
  * @returns {object[]}
@@ -94,7 +94,7 @@ function parseGenResponse(text, mode) {
   if (!Array.isArray(list) || list.length === 0) throw new Error("no questions array in response");
 
   // Normalize and validate each question.
-  return list.slice(0, 5).map((q, i) => {
+  return list.slice(0, 3).map((q, i) => {
     const base = {
       question_id: q.question_id || `q${i + 1}`,
       type: mode,
@@ -113,7 +113,7 @@ function parseGenResponse(text, mode) {
 }
 
 /**
- * Generate 5 quiz questions for the given diff and mode.
+ * Generate 3 quiz questions for the given diff and mode.
  *
  * @param {object} params
  * @param {string} params.diff          Git diff (from getStagedDiff or similar).

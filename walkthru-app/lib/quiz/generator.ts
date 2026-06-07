@@ -3,8 +3,7 @@ import { generateText } from "ai";
 import type { QuizSnippet } from "@/lib/db";
 
 const MODEL = process.env.WALKTHRU_QUIZ_MODEL ?? "claude-opus-4-8";
-const MIN_QUESTIONS = 3;
-const MAX_QUESTIONS = 5;
+const QUIZ_QUESTIONS = 3;
 
 export type NewCommitPayload = {
   commitDescription: string;
@@ -85,11 +84,11 @@ export function parseGeneratedQuiz(text: string): GeneratedQuizQuestion[] {
   if (!Array.isArray(questions)) {
     throw new Error("Quiz generation JSON must include a questions array.");
   }
-  if (questions.length < MIN_QUESTIONS || questions.length > MAX_QUESTIONS) {
-    throw new Error("Quiz generation must return 3-5 questions.");
+  if (questions.length < QUIZ_QUESTIONS) {
+    throw new Error("Quiz generation must return at least 3 questions.");
   }
 
-  return questions.map((rawQuestion, index) => {
+  return questions.slice(0, QUIZ_QUESTIONS).map((rawQuestion, index) => {
     if (!rawQuestion || typeof rawQuestion !== "object") {
       throw new Error(`Question ${index + 1} is not an object.`);
     }
@@ -128,7 +127,7 @@ function buildPrompt(payload: NewCommitPayload): string {
     `{"questions":[{"question":"...","expectedAnswer":"...","explanation":"...","contextSummary":null,"snippets":[]}]}`,
     "",
     "Rules:",
-    "- Generate 3 to 5 questions.",
+    "- Generate exactly 3 questions.",
     "- Questions must test understanding of intent, risks, edge cases, or downstream behavior.",
     "- Do not ask questions that can be answered by simply repeating the commit message.",
     "- Keep each question concise.",

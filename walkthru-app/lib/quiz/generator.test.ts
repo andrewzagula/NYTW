@@ -59,7 +59,20 @@ describe("parseGeneratedQuiz", () => {
         { question: "Q1?", expectedAnswer: "A1", explanation: "E1" },
         { question: "Q2?", expectedAnswer: "A2", explanation: "E2" },
       ],
-    }))).toThrow("3-5");
+    }))).toThrow("at least 3");
+  });
+
+  it("caps over-produced quiz JSON to 3 questions", () => {
+    const questions = parseGeneratedQuiz(JSON.stringify({
+      questions: [
+        { question: "Q1?", expectedAnswer: "A1", explanation: "E1" },
+        { question: "Q2?", expectedAnswer: "A2", explanation: "E2" },
+        { question: "Q3?", expectedAnswer: "A3", explanation: "E3" },
+        { question: "Q4?", expectedAnswer: "A4", explanation: "E4" },
+      ],
+    }));
+
+    expect(questions.map((q) => q.question)).toEqual(["Q1?", "Q2?", "Q3?"]);
   });
 
   it("rejects missing required fields", () => {

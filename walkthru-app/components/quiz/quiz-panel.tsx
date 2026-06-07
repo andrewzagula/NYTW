@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UIMessage } from "ai";
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Loader2,
+  Maximize2,
   MessageSquare,
   PanelRightClose,
   RotateCcw,
@@ -15,6 +19,10 @@ import {
 import { cn } from "@/lib/utils";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatConversation } from "@/components/chat/chat-conversation";
+
+const MIN_PANEL_WIDTH = 320;
+const MAX_PANEL_WIDTH = 900;
+const PANEL_WIDTH_STORAGE_KEY = "walkthru:chat-width";
 
 type Choice = "A" | "B" | "C" | "D";
 
@@ -73,6 +81,54 @@ export function QuizPanel({
 }: QuizPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [openMobile, setOpenMobile] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [width, setWidth] = useState(() => {
+    if (typeof window === "undefined") return 400;
+    const saved = Number(localStorage.getItem(PANEL_WIDTH_STORAGE_KEY));
+    return saved >= MIN_PANEL_WIDTH && saved <= MAX_PANEL_WIDTH ? saved : 400;
+  });
+  const panelRef = useRef<HTMLElement | null>(null);
+  const resizingRef = useRef(false);
+  const resizeRightEdgeRef = useRef(0);
+  const commitPanelFullscreen = mode === "commit" && !!commitSha && fullscreen;
+
+  useEffect(() => {
+    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(width));
+  }, [width]);
+
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    resizeRightEdgeRef.current =
+      panelRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+    resizingRef.current = true;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!resizingRef.current) return;
+      const rightEdge = resizeRightEdgeRef.current || window.innerWidth;
+      const next = rightEdge - e.clientX;
+      const max = Math.min(
+        MAX_PANEL_WIDTH,
+        Math.max(MIN_PANEL_WIDTH, rightEdge - 360),
+      );
+      setWidth(Math.min(max, Math.max(MIN_PANEL_WIDTH, next)));
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   const panel =
     mode === "general" || !commitSha ? (
@@ -95,8 +151,11 @@ export function QuizPanel({
         name={name}
         commitSha={commitSha}
         chat={chat}
+        fullscreen={fullscreen}
+        onFullscreenChange={setFullscreen}
         onCollapse={() => {
           setCollapsed(true);
+          setFullscreen(false);
           setOpenMobile(false);
         }}
       />
@@ -114,15 +173,44 @@ export function QuizPanel({
   return (
     <>
       <aside
+        ref={panelRef}
         className={cn(
           "hidden shrink-0 border-l border-border lg:block",
-          collapsed ? "lg:w-0 lg:border-l-0" : "lg:w-[400px]",
+          collapsed || commitPanelFullscreen
+            ? "lg:w-0 lg:border-l-0"
+            : mode === "commit"
+              ? ""
+              : "lg:w-[400px]",
         )}
+        style={
+          !collapsed && !commitPanelFullscreen && mode === "commit"
+            ? { flexBasis: width, width }
+            : undefined
+        }
       >
-        {!collapsed && (
-          <div className="sticky top-16 h-[calc(100vh-4rem)]">{panel}</div>
+        {!collapsed && !commitPanelFullscreen && (
+          <div className="sticky top-16 h-[calc(100vh-4rem)]">
+            {mode === "commit" && (
+              <div
+                onPointerDown={startResize}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize panel"
+                className="group absolute left-0 top-0 z-10 flex h-full w-2 -translate-x-1/2 cursor-col-resize items-center justify-center"
+              >
+                <span className="h-10 w-1 rounded-full bg-border transition-colors group-hover:bg-vermillion" />
+              </div>
+            )}
+            {panel}
+          </div>
         )}
       </aside>
+
+      {commitPanelFullscreen && !collapsed && (
+        <div className="fixed inset-x-0 bottom-0 top-16 z-30 hidden bg-background lg:block">
+          {panel}
+        </div>
+      )}
 
       <button
         type="button"
@@ -151,6 +239,8 @@ type CommitQuizPanelProps = {
   name: string;
   commitSha: string;
   chat: ChatBootstrap;
+  fullscreen: boolean;
+  onFullscreenChange: (fullscreen: boolean) => void;
   onCollapse: () => void;
 };
 
@@ -161,6 +251,8 @@ function CommitQuizPanel({
   name,
   commitSha,
   chat,
+  fullscreen,
+  onFullscreenChange,
   onCollapse,
 }: CommitQuizPanelProps) {
   const [state, setState] = useState<QuizState | null>(null);
@@ -170,6 +262,15 @@ function CommitQuizPanel({
   const [selected, setSelected] = useState<Choice | null>(null);
   const [tab, setTab] = useState<Tab>("quiz");
   const [reveal, setReveal] = useState<{ correct: boolean; correctAnswer: Choice } | null>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const repoModeHref = (() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("commit");
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  })();
 
   const start = useCallback(async () => {
     setLoading(true);
@@ -271,6 +372,18 @@ function CommitQuizPanel({
       {/* header */}
       <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
+          <div className="mb-2 inline-flex rounded-md border border-border bg-card/40 p-0.5 font-mono text-[10px] uppercase tracking-widest">
+            <Link
+              href={repoModeHref}
+              scroll={false}
+              className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              Repo
+            </Link>
+            <span className="rounded bg-vermillion/10 px-2 py-1 text-vermillion">
+              Commit
+            </span>
+          </div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-vermillion">
             Commit quiz
           </p>
@@ -283,15 +396,36 @@ function CommitQuizPanel({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onCollapse}
-          aria-label="Collapse panel"
-          className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <PanelRightClose className="hidden h-4 w-4 lg:block" />
-          <X className="h-4 w-4 lg:hidden" />
-        </button>
+        <div className="mt-0.5 flex shrink-0 items-center gap-3">
+          {fullscreen ? (
+            <button
+              type="button"
+              onClick={() => onFullscreenChange(false)}
+              aria-label="Exit fullscreen"
+              className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground lg:flex"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onFullscreenChange(true)}
+              aria-label="Fullscreen chat"
+              className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Collapse panel"
+            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <PanelRightClose className="hidden h-4 w-4 lg:block" />
+            <X className="h-4 w-4 lg:hidden" />
+          </button>
+        </div>
       </div>
 
       {/* tabs */}

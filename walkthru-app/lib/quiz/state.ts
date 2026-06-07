@@ -19,9 +19,9 @@ export function deriveQuizState(session: QuizSessionState): QuizState {
     answeredByText.set(a.question, { correct: a.correct, choice: a.choice });
   }
 
-  const ordered = [...session.questions].sort(
-    (a, b) => a.questionOrder - b.questionOrder,
-  );
+  const ordered = [...session.questions]
+    .sort((a, b) => a.questionOrder - b.questionOrder)
+    .slice(0, MAX_QUESTIONS);
 
   const answered: AnsweredQuestion[] = [];
   let current: StoredMcqQuestion | null = null;

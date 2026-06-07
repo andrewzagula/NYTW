@@ -107,7 +107,7 @@ The flow works like this:
 1. The developer creates a commit
 2. The CLI reads the final commit SHA, commit message, branch, remote URL, and commit diff
 3. The CLI calls `POST /new-commit`
-4. The API creates a quiz session, generates 3–5 commit-comprehension questions with Claude, stores the generated questions, and returns a `/q/[sessionId]` URL
+4. The API creates a quiz session, generates 3 commit-comprehension questions with Claude, stores the generated questions, and returns a `/q/[sessionId]` URL
 5. The CLI prints the URL in the terminal
 6. The developer opens the URL and reviews or answers the quiz in the Walkthru web app
 7. The web app stores the answer, score, and commit association
@@ -138,7 +138,7 @@ The hooks are written to `.git/hooks/post-commit` and `.git/hooks/pre-push` and 
 
 ### Question Generation
 
-Questions are not templates with blanks filled in. When the CLI calls `POST /new-commit`, the backend creates a quiz session and synchronously asks Claude to generate 3–5 questions from the posted commit metadata: description, subject, SHA/correlation id, branch, remote URL, repository name, source, and diff when available.
+Questions are not templates with blanks filled in. When the CLI calls `POST /new-commit`, the backend creates a quiz session and synchronously asks Claude to generate 3 questions from the posted commit metadata: description, subject, SHA/correlation id, branch, remote URL, repository name, source, and diff when available.
 
 Claude reads the actual commit context and generates questions that:
 
@@ -249,7 +249,7 @@ Every comprehension attempt is stored. Overrides (commits that bypassed the gate
 2. Git writes the commit
 3. The `post-commit` hook reads the final SHA, message, branch, remote URL, and diff
 4. CLI calls `POST /new-commit`
-5. API validates the CLI token, creates a quiz session, generates 3–5 Claude questions, and returns `/q/[sessionId]`
+5. API validates the CLI token, creates a quiz session, generates 3 Claude questions, and returns `/q/[sessionId]`
 6. CLI prints the URL for the developer
 7. If registration fails, Git continues and `pre-push` retries outgoing commits later
 
