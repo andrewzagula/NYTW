@@ -1,15 +1,15 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { getRepo } from "@/lib/mock/repos";
-import { getCommit } from "@/lib/mock/timeline";
+import { getSessionUser, getGithubToken } from "@/lib/auth/server";
+import { fetchRepoMeta, fetchCommitDiff } from "@/lib/github";
 import {
   buildSystemPrompt,
   lastUserText,
   scriptedMockAnswer,
-  type PerseusHit,
+  type ChatCommit,
+  type ChatRepo,
 } from "@/lib/chat/context";
 import { mockUIMessageResponse } from "@/lib/chat/mock-stream";
-import { queryIndex } from "@/lib/perseus";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -18,11 +18,30 @@ export const maxDuration = 30;
 // a 400, so streamText is given only model/system/messages below.
 const MODEL = process.env.WALKTHRU_CHAT_MODEL ?? "claude-opus-4-8";
 
+const MAX_DIFF_CHARS = 12_000;
+
 type ChatRequest = {
   messages: UIMessage[];
-  repoId?: string;
-  commit?: string;
+  owner?: string;
+  name?: string;
+  commitSha?: string;
 };
+
+function truncateDiff(detail: { files: Array<{ filename: string; patch: string | null }> }): string {
+  const parts: string[] = [];
+  let used = 0;
+  for (const f of detail.files) {
+    if (!f.patch) continue;
+    const block = `--- ${f.filename} ---\n${f.patch}`;
+    if (used + block.length > MAX_DIFF_CHARS) {
+      parts.push(`(diff truncated; ${detail.files.length - parts.length} more files omitted)`);
+      break;
+    }
+    parts.push(block);
+    used += block.length;
+  }
+  return parts.join("\n\n");
+}
 
 export async function POST(req: Request) {
   let body: ChatRequest;
@@ -31,41 +50,63 @@ export async function POST(req: Request) {
   } catch {
     return new Response("Invalid request body.", { status: 400 });
   }
-  const { messages, repoId, commit } = body;
+  const { messages, owner, name, commitSha } = body;
   if (!Array.isArray(messages)) {
     return new Response("messages must be an array.", { status: 400 });
   }
-
-  const repo = repoId ? getRepo(repoId) : undefined;
-
-  // Unknown repo → answer gracefully, never hard-fail.
-  if (!repo) {
+  if (!owner || !name) {
     return mockUIMessageResponse(
-      "I couldn't find that repository, so I can't ground an answer in its code. Open a repo from the dashboard and try again.",
+      "I don't know which repo you're asking about. Open a repo from the dashboard and try again.",
     );
   }
 
-  const commitNode = commit ? getCommit(repo.id, commit) ?? null : null;
   const question = lastUserText(messages);
+  const sessionUser = getSessionUser(req);
+  const token = sessionUser ? await getGithubToken(sessionUser.id) : null;
 
-  // Real mode requires BOTH a key and a perseus index id for this repo.
-  const realMode = Boolean(process.env.ANTHROPIC_API_KEY && repo.perseusIndexId);
+  // Try to enrich with real GitHub data — fall back gracefully if we can't.
+  let chatRepo: ChatRepo = { owner, name };
+  let chatCommit: ChatCommit | null = null;
 
-  if (!realMode) {
-    return mockUIMessageResponse(scriptedMockAnswer(repo, commitNode, question));
+  if (token) {
+    const meta = await fetchRepoMeta(owner, name, token);
+    if (!("error" in meta)) {
+      chatRepo = {
+        owner: meta.owner,
+        name: meta.name,
+        description: meta.description,
+        defaultBranch: meta.default_branch,
+        language: meta.language,
+      };
+    }
+
+    if (commitSha) {
+      const detail = await fetchCommitDiff(owner, name, commitSha, token);
+      if (!("error" in detail)) {
+        chatCommit = {
+          sha: detail.sha,
+          message: detail.message,
+          author: detail.author,
+          diff: truncateDiff(detail),
+        };
+      } else {
+        chatCommit = { sha: commitSha, message: "", author: "" };
+      }
+    }
+  } else if (commitSha) {
+    chatCommit = { sha: commitSha, message: "", author: "" };
   }
 
-  let hits: PerseusHit[] = [];
-  // Re-check here: Boolean(...) above doesn't narrow string | undefined → string.
-  if (repo.perseusIndexId) {
-    // queryIndex never throws — a miss returns [] and we answer without code context.
-    hits = await queryIndex(repo.perseusIndexId, question);
+  const realMode = Boolean(process.env.ANTHROPIC_API_KEY);
+
+  if (!realMode) {
+    return mockUIMessageResponse(scriptedMockAnswer(chatRepo, chatCommit, question));
   }
 
   try {
     const result = streamText({
       model: anthropic(MODEL),
-      system: buildSystemPrompt(repo, commitNode, hits),
+      system: buildSystemPrompt(chatRepo, chatCommit),
       messages: await convertToModelMessages(messages),
     });
 
@@ -73,7 +114,6 @@ export async function POST(req: Request) {
       onError: () => "The assistant hit an error. Please retry.",
     });
   } catch {
-    // Setup-time failure (e.g. malformed messages) — degrade gracefully.
     return mockUIMessageResponse(
       "The assistant couldn't process this request. Please retry.",
     );

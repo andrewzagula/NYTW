@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
 
 type ChatPanelProps = {
-  repoId: string;
+  owner: string;
+  name: string;
   commitSha: string | null;
   mode: "general" | "commit";
   header: string;
@@ -17,7 +18,8 @@ type ChatPanelProps = {
 };
 
 export function ChatPanel({
-  repoId,
+  owner,
+  name,
   commitSha,
   mode,
   header,
@@ -49,7 +51,10 @@ export function ChatPanel({
   function send(text: string) {
     const t = text.trim();
     if (!t || busy) return;
-    sendMessage({ text: t }, { body: { repoId, commit: commitSha ?? undefined } });
+    sendMessage(
+      { text: t },
+      { body: { owner, name, commitSha: commitSha ?? undefined } },
+    );
     setInput("");
   }
 

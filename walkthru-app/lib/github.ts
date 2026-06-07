@@ -8,6 +8,7 @@ export interface Commit {
   message: string;
   author: string;
   date: string;
+  parents: string[];
 }
 
 export interface Repo {
@@ -48,6 +49,7 @@ export async function fetchAllCommits(
     const batch = (await res.json()) as Array<{
       sha: string;
       commit: { message: string; author: { name: string; date: string } };
+      parents: Array<{ sha: string }>;
     }>;
 
     if (batch.length === 0) break;
@@ -58,6 +60,7 @@ export async function fetchAllCommits(
         message: item.commit.message,
         author: item.commit.author.name,
         date: item.commit.author.date,
+        parents: item.parents.map((p) => p.sha),
       });
       if (commits.length >= limit) break;
     }
@@ -191,6 +194,58 @@ export async function fetchCommitsSummary(
   });
 
   return summary;
+}
+
+export interface RepoMeta {
+  owner: string;
+  name: string;
+  full_name: string;
+  description: string | null;
+  language: string | null;
+  default_branch: string;
+  private: boolean;
+  open_prs: number | null;
+}
+
+export async function fetchRepoMeta(
+  owner: string,
+  repo: string,
+  token: string
+): Promise<RepoMeta | GitHubError> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      error: (body as { message?: string }).message ?? res.statusText,
+      status: res.status,
+    };
+  }
+
+  const data = (await res.json()) as {
+    name: string;
+    full_name: string;
+    owner: { login: string };
+    description: string | null;
+    language: string | null;
+    default_branch: string;
+    private: boolean;
+    open_issues_count?: number;
+  };
+
+  // open_issues_count includes issues; PR-only count needs a separate call.
+  // For v1 we leave that null and let the UI render a dash.
+  return {
+    owner: data.owner.login,
+    name: data.name,
+    full_name: data.full_name,
+    description: data.description,
+    language: data.language,
+    default_branch: data.default_branch,
+    private: data.private,
+    open_prs: null,
+  };
 }
 
 export async function fetchUserRepos(

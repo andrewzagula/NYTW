@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * Stub auth boundary.
+ * Client-side auth boundary.
  *
- * Everything the UI needs goes through `useAuth()`. The implementation here is
- * a localStorage-backed stub for the mocked first pass — no real OAuth. When
- * real auth (Replit / GitHub / Google) lands, only this module changes; the
- * screens keep calling the same hook.
+ * Hydrates from /api/auth/status (Replit headers / dev cookie) and, when GitHub
+ * is connected, /api/user/profile for the GH username + avatar. The UI never
+ * touches the underlying auth mechanism directly — only this hook.
  */
 
 import {
@@ -18,121 +17,111 @@ import {
   type ReactNode,
 } from "react";
 
-export type AuthProvider = "github" | "google" | "email";
-
 export type AuthUser = {
+  /** Replit user id (also our internal user id). */
   id: string;
+  /** Replit user name. */
   name: string;
-  email: string;
-  avatarUrl: string;
-  /** GitHub sign-ins are connected immediately; google/email need a connect step. */
-  githubConnected: boolean;
+  githubUsername: string;
+  githubAvatar: string;
 };
 
-const STORAGE_KEY = "walkthru.auth";
-
-function readStored(): AuthUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthUser) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(user: AuthUser | null) {
-  if (typeof window === "undefined") return;
-  if (user) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  else window.localStorage.removeItem(STORAGE_KEY);
-}
-
-function nameFromEmail(email: string): string {
-  const handle = email.split("@")[0] ?? "developer";
-  return handle
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(" ");
-}
-
-// The demo identity the stub "signs in" as.
-function makeUser(provider: AuthProvider, email?: string): AuthUser {
-  if (provider === "github") {
-    return {
-      id: "u_demo",
-      name: "Andrew Zagula",
-      email: "andrew@walkthru.dev",
-      avatarUrl: "",
-      githubConnected: true,
-    };
-  }
-  const resolvedEmail = email?.trim() || "you@walkthru.dev";
-  return {
-    id: "u_demo",
-    name: nameFromEmail(resolvedEmail),
-    email: resolvedEmail,
-    avatarUrl: "",
-    githubConnected: false,
-  };
-}
-
-type AuthContextValue = {
+type AuthState = {
   user: AuthUser | null;
-  /** true until the stored session has been read on the client */
+  /** True until the initial /api/auth/status round-trip resolves. */
   loading: boolean;
-  signIn: (provider: AuthProvider, email?: string) => AuthUser;
-  connectGithub: () => void;
-  signOut: () => void;
+  /** Replit-authenticated but no GitHub token yet. */
+  needsGithub: boolean;
+};
+
+type AuthContextValue = AuthState & {
+  refresh: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-type AuthState = { user: AuthUser | null; loading: boolean };
+type StatusResponse = {
+  replit_authed: boolean;
+  github_connected: boolean;
+  username: string | null;
+};
+
+type ProfileResponse = {
+  user: { github_username: string; github_avatar: string } | null;
+};
+
+async function loadAuth(): Promise<AuthState> {
+  let status: StatusResponse;
+  try {
+    const r = await fetch("/api/auth/status", { cache: "no-store" });
+    status = (await r.json()) as StatusResponse;
+  } catch {
+    return { user: null, loading: false, needsGithub: false };
+  }
+
+  if (!status.replit_authed) {
+    return { user: null, loading: false, needsGithub: false };
+  }
+  if (!status.github_connected) {
+    return { user: null, loading: false, needsGithub: true };
+  }
+
+  let profile: ProfileResponse = { user: null };
+  try {
+    const r = await fetch("/api/user/profile", { cache: "no-store" });
+    if (r.ok) profile = (await r.json()) as ProfileResponse;
+  } catch {
+    // non-fatal — fall back to whatever the status route gave us
+  }
+
+  // The Replit id isn't surfaced by /api/auth/status (only the name). The
+  // server identifies the user from the request headers anyway, so we store an
+  // opaque id here — the actual auth check is server-side on every request.
+  return {
+    user: {
+      id: status.username ?? "self",
+      name: status.username ?? "you",
+      githubUsername: profile.user?.github_username ?? "",
+      githubAvatar: profile.user?.github_avatar ?? "",
+    },
+    loading: false,
+    needsGithub: false,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ user: null, loading: true });
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    needsGithub: false,
+  });
+
+  const refresh = useCallback(async () => {
+    const next = await loadAuth();
+    setState(next);
+  }, []);
 
   useEffect(() => {
-    // Hydrate the stub session from localStorage once after mount. The initial
-    // render stays null (loading: true) on both server and client, which avoids
-    // a hydration mismatch — the documented localStorage-on-mount pattern.
+    // Initial load. Stay null/loading on first render so SSR + client agree.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ user: readStored(), loading: false });
-  }, []);
+    void refresh();
+  }, [refresh]);
 
-  const signIn = useCallback((provider: AuthProvider, email?: string) => {
-    const next = makeUser(provider, email);
-    writeStored(next);
-    setState({ user: next, loading: false });
-    return next;
-  }, []);
-
-  const connectGithub = useCallback(() => {
-    setState((prev) => {
-      const next: AuthUser = prev.user
-        ? { ...prev.user, githubConnected: true }
-        : makeUser("github");
-      writeStored(next);
-      return { user: next, loading: false };
-    });
-  }, []);
-
-  const signOut = useCallback(() => {
-    writeStored(null);
-    setState({ user: null, loading: false });
+  const signOut = useCallback(async () => {
+    try {
+      await Promise.all([
+        fetch("/api/auth/github/disconnect", { method: "POST" }),
+        fetch("/api/dev-login", { method: "DELETE" }),
+      ]);
+    } catch {
+      // ignore — we're tearing the session down anyway
+    }
+    setState({ user: null, loading: false, needsGithub: false });
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user: state.user,
-        loading: state.loading,
-        signIn,
-        connectGithub,
-        signOut,
-      }}
-    >
+    <AuthContext.Provider value={{ ...state, refresh, signOut }}>
       {children}
     </AuthContext.Provider>
   );
