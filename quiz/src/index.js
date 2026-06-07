@@ -19,6 +19,7 @@
 const { queryPerseus } = require("./perseus");
 const { scoreQuiz, scoreQuestion } = require("./scoring");
 const { decideCommit } = require("./commit-decision");
+const { auditDiff } = require("./security-audit");
 
 /**
  * Score a set of answered questions and produce the commit-gate decision.
@@ -37,4 +38,5 @@ module.exports = {
   scoreQuestion,
   decideCommit,
   evaluateQuiz,
+  auditDiff,
 };
