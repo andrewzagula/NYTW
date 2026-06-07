@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { GitBranch } from "lucide-react";
 import { relativeTime } from "@/lib/format";
-import { ScoreChip } from "@/components/shared/score-chip";
 
 export type ConnectedRepoCardData = {
   owner: string;
@@ -16,15 +15,12 @@ export function RepoCard({ repo }: { repo: ConnectedRepoCardData }) {
       href={`/repos/${repo.owner}/${repo.name}`}
       className="group block rounded-xl border border-border bg-card/30 p-5 transition-colors hover:border-zinc-600 hover:bg-card/60"
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 truncate font-mono text-sm">
-          <span className="text-muted-foreground">{repo.owner}/</span>
-          <span className="font-medium text-foreground group-hover:text-vermillion">
-            {repo.name}
-          </span>
-        </p>
-        <ScoreChip score={null} />
-      </div>
+      <p className="min-w-0 truncate font-mono text-sm">
+        <span className="text-muted-foreground">{repo.owner}/</span>
+        <span className="font-medium text-foreground group-hover:text-vermillion">
+          {repo.name}
+        </span>
+      </p>
 
       <p className="mt-2.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
         Connected {relativeTime(repo.connectedAt)}

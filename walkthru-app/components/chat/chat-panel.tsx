@@ -179,15 +179,6 @@ export function ChatPanel({
           <div className="sticky top-16 h-[calc(100vh-4rem)]">{panel}</div>
         )}
       </aside>
-      {collapsed && (
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          className="fixed right-0 top-1/2 z-30 hidden -translate-y-1/2 items-center gap-2 rounded-l-lg border border-r-0 border-border bg-card px-3 py-3 font-mono text-[10px] uppercase tracking-widest text-vermillion transition-colors hover:bg-accent lg:flex"
-        >
-          <MessageSquare className="h-4 w-4" /> Chat
-        </button>
-      )}
 
       {/* Mobile (< lg): floating button + drawer */}
       <button
