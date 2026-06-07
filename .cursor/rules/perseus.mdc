@@ -1,6 +1,7 @@
-@AGENTS.md
-
-<!-- perseus:rules -->
+---
+description: Find code by meaning, intent, or structure — where something lives, how a behaviour is implemented, which file to edit — before reaching for grep. Use perseus query for conceptual / where-is / how-does code search.
+alwaysApply: true
+---
 <!-- perseus:rules v6 — managed by `perseus rules`; edit the prompt in perseus, not here -->
 ## Code search: query `perseus` before grep
 
@@ -77,4 +78,3 @@ perseus query --no-summary --json "auth enforcement on the query route"
 
 It auto-indexes the current branch/commit on first use — just run it from
 inside the repo. Re-run `perseus index` after large changes if hits look stale.
-<!-- /perseus:rules -->
