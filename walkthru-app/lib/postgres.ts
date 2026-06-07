@@ -58,6 +58,10 @@ export async function initDb(): Promise<void> {
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS branch TEXT;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS remote_url TEXT;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source TEXT;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS superseded BOOLEAN NOT NULL DEFAULT FALSE;
+    CREATE INDEX IF NOT EXISTS sessions_active_idx
+      ON sessions (user_id, repo, commit_sha) WHERE superseded = FALSE;
 
     CREATE TABLE IF NOT EXISTS attempts (
       id         SERIAL PRIMARY KEY,
@@ -80,6 +84,11 @@ export async function initDb(): Promise<void> {
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (session_id, question_order)
     );
+
+    ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS options JSONB;
+    ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS correct_answer TEXT;
+    ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS difficulty TEXT NOT NULL DEFAULT 'medium';
+    ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS parent_question_id INTEGER;
 
     -- Per-commit chat threads, private to each user. One row per message,
     -- ordered by seq within (user_id, repo, commit_sha).

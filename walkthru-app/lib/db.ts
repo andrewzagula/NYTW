@@ -1,6 +1,7 @@
 import type { UIMessage } from "ai";
 import { getPool, initDb } from "./postgres";
 import { messagesToRows, rowsToMessages } from "./chat/persistence";
+import type { Choice, Difficulty, McqOptions, McqQuestion } from "./quiz/mcq";
 
 // --- Types ---
 
@@ -373,6 +374,295 @@ export async function getCommitsWithChats(
     [userId, repo]
   );
   return new Set(rows.map((r) => r.commit_sha as string));
+}
+
+// --- MCQ quiz sessions (per-commit) ---
+
+export type StoredMcqQuestion = {
+  id: number;
+  questionOrder: number;
+  question: string;
+  options: McqOptions;
+  correctAnswer: Choice;
+  explanation: string;
+  difficulty: Difficulty;
+  parentQuestionId: number | null;
+};
+
+export type StoredMcqAttempt = {
+  id: number;
+  question: string;
+  correct: boolean;
+  /** Stored in attempts.hint — the option letter the user selected. */
+  choice: string | null;
+  createdAt: string;
+};
+
+export type QuizSessionState = {
+  sessionId: string;
+  repo: string;
+  commitSha: string;
+  startedAt: string;
+  finishedAt: string | null;
+  score: number;
+  total: number;
+  questions: StoredMcqQuestion[];
+  attempts: StoredMcqAttempt[];
+};
+
+export type CommitScore = {
+  commitSha: string;
+  score: number;
+  total: number;
+  percent: number;
+};
+
+function parseStoredQuestion(row: Record<string, unknown>): StoredMcqQuestion {
+  const optionsRaw = row.options as McqOptions | string | null;
+  const options: McqOptions =
+    typeof optionsRaw === "string"
+      ? (JSON.parse(optionsRaw) as McqOptions)
+      : (optionsRaw as McqOptions);
+  return {
+    id: row.id as number,
+    questionOrder: row.question_order as number,
+    question: row.question as string,
+    options,
+    correctAnswer: (row.correct_answer as Choice) ?? "A",
+    explanation: (row.explanation as string) ?? "",
+    difficulty: (row.difficulty as Difficulty) ?? "medium",
+    parentQuestionId: (row.parent_question_id as number | null) ?? null,
+  };
+}
+
+export async function getActiveQuizSession(
+  userId: string,
+  repo: string,
+  commitSha: string,
+): Promise<QuizSessionState | null> {
+  const pool = await db();
+  const { rows } = await pool.query(
+    `SELECT id, started_at::text, finished_at::text, score, total
+       FROM sessions
+       WHERE user_id = $1 AND repo = $2 AND commit_sha = $3 AND superseded = FALSE
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    [userId, repo, commitSha],
+  );
+  if (!rows[0]) return null;
+  const sessionId = rows[0].id as string;
+
+  const { rows: qRows } = await pool.query(
+    `SELECT id, question_order, question, options, correct_answer,
+            explanation, difficulty, parent_question_id
+       FROM quiz_questions
+       WHERE session_id = $1
+       ORDER BY question_order`,
+    [sessionId],
+  );
+  const { rows: aRows } = await pool.query(
+    `SELECT id, question, correct, hint, created_at::text
+       FROM attempts
+       WHERE session_id = $1
+       ORDER BY created_at`,
+    [sessionId],
+  );
+
+  return {
+    sessionId,
+    repo,
+    commitSha,
+    startedAt: rows[0].started_at as string,
+    finishedAt: rows[0].finished_at as string | null,
+    score: rows[0].score as number,
+    total: rows[0].total as number,
+    questions: qRows.map((r) => parseStoredQuestion(r as Record<string, unknown>)),
+    attempts: aRows.map((r) => ({
+      id: r.id as number,
+      question: r.question as string,
+      correct: r.correct as boolean,
+      choice: (r.hint as string | null) ?? null,
+      createdAt: r.created_at as string,
+    })),
+  };
+}
+
+export async function createQuizSession(
+  userId: string,
+  input: {
+    repo: string;
+    commitSha: string;
+    commitMessage?: string | null;
+    branch?: string | null;
+    questions: McqQuestion[];
+  },
+): Promise<string> {
+  const pool = await db();
+  const sessionId = crypto.randomUUID();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO sessions (id, user_id, repo, commit_sha, commit_message, branch, source)
+       VALUES ($1, $2, $3, $4, $5, $6, 'quiz')`,
+      [
+        sessionId,
+        userId,
+        input.repo,
+        input.commitSha,
+        input.commitMessage ?? null,
+        input.branch ?? null,
+      ],
+    );
+    for (let i = 0; i < input.questions.length; i++) {
+      const q = input.questions[i];
+      await client.query(
+        `INSERT INTO quiz_questions (
+           session_id, question_order, question, expected_answer, explanation,
+           options, correct_answer, difficulty
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          sessionId,
+          i + 1,
+          q.question,
+          q.options[q.correctAnswer],
+          q.explanation,
+          JSON.stringify(q.options),
+          q.correctAnswer,
+          q.difficulty,
+        ],
+      );
+    }
+    await client.query("COMMIT");
+    return sessionId;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function appendQuizQuestion(
+  sessionId: string,
+  question: McqQuestion,
+  parentQuestionId: number,
+): Promise<StoredMcqQuestion> {
+  const pool = await db();
+  const { rows: maxRows } = await pool.query(
+    `SELECT COALESCE(MAX(question_order), 0) AS m FROM quiz_questions WHERE session_id = $1`,
+    [sessionId],
+  );
+  const order = (maxRows[0]?.m as number) + 1;
+  const { rows } = await pool.query(
+    `INSERT INTO quiz_questions (
+       session_id, question_order, question, expected_answer, explanation,
+       options, correct_answer, difficulty, parent_question_id
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, question_order, question, options, correct_answer,
+               explanation, difficulty, parent_question_id`,
+    [
+      sessionId,
+      order,
+      question.question,
+      question.options[question.correctAnswer],
+      question.explanation,
+      JSON.stringify(question.options),
+      question.correctAnswer,
+      question.difficulty,
+      parentQuestionId,
+    ],
+  );
+  return parseStoredQuestion(rows[0] as Record<string, unknown>);
+}
+
+export async function recordMcqAttempt(
+  sessionId: string,
+  attempt: { question: string; correct: boolean; choice: string },
+): Promise<void> {
+  await recordAttempt(sessionId, {
+    question: attempt.question,
+    correct: attempt.correct,
+    hint: attempt.choice,
+  });
+}
+
+export async function finishQuizSession(sessionId: string): Promise<void> {
+  const pool = await db();
+  await pool.query(
+    `UPDATE sessions SET finished_at = NOW() WHERE id = $1 AND finished_at IS NULL`,
+    [sessionId],
+  );
+}
+
+export async function supersedeQuizSessions(
+  userId: string,
+  repo: string,
+  commitSha: string,
+): Promise<void> {
+  const pool = await db();
+  await pool.query(
+    `UPDATE sessions SET superseded = TRUE
+       WHERE user_id = $1 AND repo = $2 AND commit_sha = $3 AND superseded = FALSE`,
+    [userId, repo, commitSha],
+  );
+}
+
+/** Latest finished score per commit for one repo, used for timeline badges. */
+export async function getRepoCommitScores(
+  userId: string,
+  repo: string,
+): Promise<CommitScore[]> {
+  const pool = await db();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (commit_sha) commit_sha, score, total
+       FROM sessions
+       WHERE user_id = $1 AND repo = $2 AND superseded = FALSE
+             AND finished_at IS NOT NULL AND commit_sha IS NOT NULL
+       ORDER BY commit_sha, started_at DESC`,
+    [userId, repo],
+  );
+  return rows.map((r) => {
+    const score = r.score as number;
+    const total = (r.total as number) || 0;
+    return {
+      commitSha: r.commit_sha as string,
+      score,
+      total,
+      percent: total > 0 ? Math.round((score / total) * 100) : 0,
+    };
+  });
+}
+
+/** Per-repo average percent across all quizzed commits, used for dashboard. */
+export async function getUserRepoAverages(
+  userId: string,
+): Promise<Record<string, { avgPercent: number; quizzedCommits: number }>> {
+  const pool = await db();
+  const { rows } = await pool.query(
+    `WITH latest AS (
+       SELECT DISTINCT ON (repo, commit_sha) repo, commit_sha, score, total
+         FROM sessions
+         WHERE user_id = $1 AND superseded = FALSE
+               AND finished_at IS NOT NULL AND commit_sha IS NOT NULL
+               AND total > 0
+         ORDER BY repo, commit_sha, started_at DESC
+     )
+     SELECT repo,
+            COUNT(*)::int AS commits,
+            AVG(score::float / NULLIF(total, 0))::float AS avg_ratio
+       FROM latest
+       GROUP BY repo`,
+    [userId],
+  );
+  const out: Record<string, { avgPercent: number; quizzedCommits: number }> = {};
+  for (const r of rows) {
+    out[r.repo as string] = {
+      avgPercent: Math.round(((r.avg_ratio as number) ?? 0) * 100),
+      quizzedCommits: r.commits as number,
+    };
+  }
+  return out;
 }
 
 export async function getUserSessions(userId: string): Promise<Session[]> {

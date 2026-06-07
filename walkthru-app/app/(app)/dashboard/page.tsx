@@ -39,18 +39,27 @@ function splitFullName(fullName: string): { owner: string; name: string } {
   return { owner: fullName.slice(0, slash), name: fullName.slice(slash + 1) };
 }
 
-function toCardData(r: ApiConnectedRepo): ConnectedRepoCardData {
+function toCardData(
+  r: ApiConnectedRepo,
+  averages: Record<string, { avgPercent: number; quizzedCommits: number }>,
+): ConnectedRepoCardData {
   const { owner, name } = splitFullName(r.full_name);
+  const avg = averages[r.full_name];
   return {
     owner,
     name,
     connectedAt: r.connected_at,
     lastIndexed: r.last_indexed,
+    avgScorePercent: avg ? avg.avgPercent : null,
+    quizzedCommits: avg ? avg.quizzedCommits : 0,
   };
 }
 
+type QuizAverages = Record<string, { avgPercent: number; quizzedCommits: number }>;
+
 export default function DashboardPage() {
   const [connected, setConnected] = useState<ApiConnectedRepo[] | null>(null);
+  const [averages, setAverages] = useState<QuizAverages>({});
   const [error, setError] = useState<string | null>(null);
 
   const [showPicker, setShowPicker] = useState(false);
@@ -75,11 +84,23 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadAverages = useCallback(async () => {
+    try {
+      const r = await fetch("/api/user/quiz-averages", { cache: "no-store" });
+      if (!r.ok) return;
+      const data = (await r.json()) as { averages: QuizAverages };
+      setAverages(data.averages ?? {});
+    } catch {
+      // Non-fatal; dashboard works without scores.
+    }
+  }, []);
+
   useEffect(() => {
-    // Mount-time fetch — setState happens inside loadProfile.
+    // Mount-time fetch — setState happens inside loadProfile / loadAverages.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProfile();
-  }, [loadProfile]);
+    void loadAverages();
+  }, [loadProfile, loadAverages]);
 
   const loadGithubRepos = useCallback(async () => {
     setGhLoading(true);
@@ -124,6 +145,14 @@ export default function DashboardPage() {
 
   const connectedCount = connected?.length ?? 0;
   const connectedFullNames = new Set(connected?.map((r) => r.full_name) ?? []);
+  const repoAvgValues = Object.values(averages);
+  const overallAvgPercent =
+    repoAvgValues.length > 0
+      ? Math.round(
+          repoAvgValues.reduce((sum, a) => sum + a.avgPercent, 0) /
+            repoAvgValues.length,
+        )
+      : null;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
@@ -144,7 +173,10 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-3 gap-3">
           <Stat label="Repos" value={connected === null ? "—" : String(connectedCount)} />
-          <Stat label="Avg score" value="—" />
+          <Stat
+            label="Avg score"
+            value={overallAvgPercent === null ? "—" : `${overallAvgPercent}%`}
+          />
           <Stat label="Open PRs" value="—" />
         </div>
       </div>
@@ -177,7 +209,7 @@ export default function DashboardPage() {
       {connected !== null && connected.length > 0 && (
         <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {connected.map((r) => (
-            <RepoCard key={r.full_name} repo={toCardData(r)} />
+            <RepoCard key={r.full_name} repo={toCardData(r, averages)} />
           ))}
           <button
             type="button"

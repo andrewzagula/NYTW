@@ -3,7 +3,8 @@ import { redirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { ArrowLeft, GitBranch } from "lucide-react";
 import { TimelineGraph } from "@/components/timeline/timeline-graph";
-import { ChatPanel } from "@/components/chat/chat-panel";
+import { CommitDiff } from "@/components/timeline/commit-diff";
+import { QuizPanel } from "@/components/quiz/quiz-panel";
 import {
   chatHeader,
   chatMode,
@@ -12,8 +13,12 @@ import {
   type ChatCommit,
 } from "@/lib/chat/context";
 import { getSessionUser, getGithubToken } from "@/lib/auth/server";
-import { getChatMessages, getCommitsWithChats } from "@/lib/db";
-import { fetchAllCommits, fetchRepoMeta } from "@/lib/github";
+import {
+  getChatMessages,
+  getCommitsWithChats,
+  getRepoCommitScores,
+} from "@/lib/db";
+import { fetchAllCommits, fetchCommitDiff, fetchRepoMeta } from "@/lib/github";
 import { toTimelineNodes } from "@/lib/timeline/from-commits";
 
 async function buildRequest(): Promise<Request> {
@@ -80,12 +85,25 @@ export default async function RepoTimelinePage({
   // Saved per-commit chats (private to this user). Load failures degrade to an
   // empty timeline indicator / empty thread rather than breaking the page.
   const repoFullName = `${meta.owner}/${meta.name}`;
-  const [chatShas, savedMessages] = await Promise.all([
+  const [chatShas, savedMessages, commitScores] = await Promise.all([
     getCommitsWithChats(sessionUser.id, repoFullName).catch(() => new Set<string>()),
     commitNode
       ? getChatMessages(sessionUser.id, repoFullName, commitNode.sha).catch(() => [])
       : Promise.resolve([]),
+    getRepoCommitScores(sessionUser.id, repoFullName).catch(() => []),
   ]);
+
+  const avgPercent =
+    commitScores.length > 0
+      ? Math.round(
+          commitScores.reduce((sum, s) => sum + s.percent, 0) / commitScores.length,
+        )
+      : null;
+
+  const commitDetail =
+    commitNode && (await fetchCommitDiff(meta.owner, meta.name, commitNode.sha, token));
+  const renderableDiff =
+    commitDetail && !("error" in commitDetail) ? commitDetail : null;
 
   return (
     <div className="flex">
@@ -124,6 +142,20 @@ export default async function RepoTimelinePage({
               </span>
             </div>
           </div>
+
+          {avgPercent !== null && (
+            <div className="rounded-xl border border-vermillion/40 bg-vermillion/5 px-4 py-3">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-vermillion">
+                Avg quiz score
+              </p>
+              <p className="mt-0.5 font-mono text-2xl font-semibold tabular-nums text-foreground">
+                {avgPercent}%
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {commitScores.length} commit{commitScores.length === 1 ? "" : "s"} quizzed
+              </p>
+            </div>
+          )}
         </header>
 
         <div className="mt-8">
@@ -142,22 +174,27 @@ export default async function RepoTimelinePage({
                 name={meta.name}
                 activeSha={commitNode?.sha}
                 chatShas={[...chatShas]}
+                scores={Object.fromEntries(
+                  commitScores.map((s) => [s.commitSha, s.percent]),
+                )}
               />
             </div>
           )}
         </div>
       </main>
 
-      <ChatPanel
+      <QuizPanel
         key={commitNode?.sha ?? "general"}
         owner={meta.owner}
         name={meta.name}
         commitSha={commitNode?.sha ?? null}
         mode={chatMode(chatCommit)}
-        header={chatHeader(chatRepo, chatCommit)}
-        commitMessage={commitNode?.message ?? null}
-        suggestions={suggestedPrompts(chatCommit)}
-        initialMessages={savedMessages}
+        chat={{
+          header: chatHeader(chatRepo, chatCommit),
+          commitMessage: commitNode?.message ?? null,
+          suggestions: suggestedPrompts(chatCommit),
+          initialMessages: savedMessages,
+        }}
       />
     </div>
   );

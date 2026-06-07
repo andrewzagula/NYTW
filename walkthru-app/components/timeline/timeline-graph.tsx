@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { relativeTime } from "@/lib/format";
 import type { TimelineNode } from "@/lib/timeline/types";
 
@@ -34,6 +34,7 @@ export function TimelineGraph({
   name,
   activeSha,
   chatShas = [],
+  scores = {},
 }: {
   nodes: TimelineNode[];
   owner: string;
@@ -41,6 +42,8 @@ export function TimelineGraph({
   activeSha?: string;
   /** SHAs that already have a saved chat for the current user. */
   chatShas?: string[];
+  /** SHA -> percent for commits the current user has quizzed. */
+  scores?: Record<string, number>;
 }) {
   const height = nodes.length * ROW;
   const chatSet = new Set(chatShas);
@@ -184,24 +187,40 @@ export function TimelineGraph({
               </span>
 
               <div className="flex w-[88px] shrink-0 justify-end">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors ${
-                    n.sha === activeSha
-                      ? "border-vermillion/60 bg-vermillion/10 text-vermillion"
-                      : chatSet.has(n.sha)
-                        ? "border-vermillion/40 bg-card/50 text-foreground group-hover:border-vermillion/60"
-                        : "border-border bg-card/50 text-muted-foreground group-hover:border-vermillion/50 group-hover:text-foreground"
-                  }`}
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  chat
-                  {chatSet.has(n.sha) && (
-                    <span
-                      className="h-1.5 w-1.5 rounded-full bg-vermillion"
-                      aria-label="has saved chat"
-                    />
-                  )}
-                </span>
+                {scores[n.sha] !== undefined ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest tabular-nums transition-colors ${
+                      scores[n.sha] >= 80
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        : scores[n.sha] >= 50
+                          ? "border-vermillion/50 bg-vermillion/10 text-vermillion"
+                          : "border-destructive/40 bg-destructive/10 text-destructive"
+                    }`}
+                    aria-label={`Quiz score ${scores[n.sha]}%`}
+                  >
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    {scores[n.sha]}%
+                  </span>
+                ) : (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                      n.sha === activeSha
+                        ? "border-vermillion/60 bg-vermillion/10 text-vermillion"
+                        : chatSet.has(n.sha)
+                          ? "border-vermillion/40 bg-card/50 text-foreground group-hover:border-vermillion/60"
+                          : "border-border bg-card/50 text-muted-foreground group-hover:border-vermillion/50 group-hover:text-foreground"
+                    }`}
+                  >
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    quiz
+                    {chatSet.has(n.sha) && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-vermillion"
+                        aria-label="has saved chat"
+                      />
+                    )}
+                  </span>
+                )}
               </div>
             </Link>
           </li>
