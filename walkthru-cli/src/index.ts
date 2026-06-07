@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { login } from "./commands/login.js";
 import { init } from "./commands/init.js";
+import { openWalkthru } from "./commands/open.js";
 import { runCommitGate } from "./hooks/commit.js";
 
 const program = new Command();
@@ -9,7 +10,13 @@ const program = new Command();
 program
   .name("walkthru")
   .description("Comprehension gate for git commits")
-  .version("0.1.0");
+  .version("0.1.0")
+  .action(openWalkthru);
+
+program
+  .command("open")
+  .description("Open the local Walkthru menu")
+  .action(openWalkthru);
 
 program
   .command("login")
