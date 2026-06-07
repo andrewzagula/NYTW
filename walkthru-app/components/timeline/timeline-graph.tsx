@@ -4,8 +4,8 @@ import { ScoreChip } from "@/components/shared/score-chip";
 import type { TimelineNode } from "@/lib/timeline/types";
 
 const ROW = 92; // px height per commit row
-const GUTTER = 76; // px width of the graph gutter
-const LANE_X = [28, 56]; // x of lane 0 (main) and lane 1 (feature)
+const GUTTER = 112; // px width of the graph gutter
+const LANE_X = [52, 84]; // x of lane 0 (main) and lane 1 (feature)
 const DOT_R = 5;
 
 const COLORS = {
@@ -15,6 +15,7 @@ const COLORS = {
   mainDotStroke: "#52525b",
   featureDot: "#ff4d2e",
   mergeStroke: "#ff4d2e",
+  activeDot: "#ff4d2e",
 };
 
 function yCenter(i: number) {
@@ -108,16 +109,17 @@ export function TimelineGraph({
         {nodes.map((n, i) => {
           const x = LANE_X[n.lane];
           const y = yCenter(i);
+          const isActive = n.sha === activeSha;
           if (n.type === "merge") {
             return (
-              <circle key={n.sha} cx={x} cy={y} r={DOT_R + 1} fill={COLORS.mainDotFill} stroke={COLORS.mergeStroke} strokeWidth={2.5} />
+              <circle key={n.sha} cx={x} cy={y} r={DOT_R + 1} fill={isActive ? COLORS.activeDot : COLORS.mainDotFill} stroke={COLORS.mergeStroke} strokeWidth={2.5} />
             );
           }
           if (n.lane === 1) {
             return <circle key={n.sha} cx={x} cy={y} r={DOT_R} fill={COLORS.featureDot} />;
           }
           return (
-            <circle key={n.sha} cx={x} cy={y} r={DOT_R} fill={COLORS.mainDotFill} stroke={COLORS.mainDotStroke} strokeWidth={2} />
+            <circle key={n.sha} cx={x} cy={y} r={DOT_R} fill={isActive ? COLORS.activeDot : COLORS.mainDotFill} stroke={isActive ? COLORS.activeDot : COLORS.mainDotStroke} strokeWidth={2} />
           );
         })}
       </svg>
