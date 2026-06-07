@@ -16,7 +16,7 @@ program
 
 program
   .command("open")
-  .description("Open the local Walkthru menu")
+  .description("Open the Walkthru web app dashboard")
   .action(openWalkthru);
 
 program
