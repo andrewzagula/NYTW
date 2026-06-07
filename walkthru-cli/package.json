@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@inquirer/prompts": "^7",
     "chalk": "^5",
     "commander": "^13",
     "simple-git": "^3"
