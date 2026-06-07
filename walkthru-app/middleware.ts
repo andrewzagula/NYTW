@@ -13,5 +13,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/repos", "/api/commits/:path*", "/api/commits-summary"],
+  matcher: ["/api/repos", "/api/repos/select", "/api/commits/:path*", "/api/commits-summary"],
 };

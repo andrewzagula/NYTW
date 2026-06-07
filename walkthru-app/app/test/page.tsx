@@ -41,6 +41,37 @@ interface CommitDetail {
   files: CommitFile[];
 }
 
+interface UserProfile {
+  github_username: string;
+  github_avatar: string;
+  created_at: string;
+  last_active: string;
+}
+
+interface ConnectedRepo {
+  full_name: string;
+  connected_at: string;
+  last_indexed: string | null;
+  index_job_id: string | null;
+}
+
+interface SessionAttempt {
+  question: string;
+  correct: boolean;
+  hint?: string;
+  created_at: string;
+}
+
+interface GameSession {
+  id: string;
+  user_id: string;
+  repo: string;
+  started_at: string;
+  score: number;
+  total: number;
+  attempts: SessionAttempt[];
+}
+
 export default function TestPage() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [owner, setOwner] = useState("");
@@ -57,11 +88,38 @@ export default function TestPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
+
   useEffect(() => {
     fetch("/api/auth/status")
       .then((r) => r.json())
-      .then((data: AuthStatus) => setStatus(data))
+      .then((data: AuthStatus) => {
+        setStatus(data);
+        if (data.github_connected) {
+          fetch("/api/user/profile")
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d) {
+                setUserProfile(d.user ?? null);
+                setConnectedRepos(d.repos ?? []);
+              }
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => setStatus({ replit_authed: false, github_connected: false, username: null }));
+
+    const stored = localStorage.getItem("walkthru_session_id");
+    if (stored) {
+      setSessionId(stored);
+      fetch(`/api/sessions?sessionId=${encodeURIComponent(stored)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d) setCurrentSession(d as GameSession); })
+        .catch(() => {});
+    }
   }, []);
 
   async function fetchCommits() {
@@ -150,6 +208,38 @@ export default function TestPage() {
     setSummaryError(null);
   }
 
+  async function connectRepo(fullName: string) {
+    const slash = fullName.indexOf("/");
+    const owner = fullName.slice(0, slash);
+    const name = fullName.slice(slash + 1);
+    await fetch("/api/repos/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner, name }),
+    });
+    const d = await fetch("/api/user/profile").then((r) => (r.ok ? r.json() : null));
+    if (d) {
+      setUserProfile(d.user ?? null);
+      setConnectedRepos(d.repos ?? []);
+    }
+  }
+
+  async function startSession(repo: string) {
+    const r = await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo }),
+    });
+    if (!r.ok) return;
+    const { sessionId: newId } = await r.json() as { sessionId: string };
+    localStorage.setItem("walkthru_session_id", newId);
+    setSessionId(newId);
+    const session = await fetch(`/api/sessions?sessionId=${encodeURIComponent(newId)}`).then((r2) =>
+      r2.ok ? r2.json() : null
+    );
+    if (session) setCurrentSession(session as GameSession);
+  }
+
   async function toggleCommit(sha: string) {
     if (openSha === sha) {
       setOpenSha(null);
@@ -191,10 +281,31 @@ export default function TestPage() {
         {/* Auth status */}
         <div className="p-3 border border-gray-700 rounded space-y-2 text-white">
           {!status.replit_authed ? (
-            <p className="text-gray-300">Sign in via Replit to continue</p>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-300">Sign in to continue</p>
+              <a
+                href="/dev-login"
+                className="text-xs px-3 py-1 bg-white text-black rounded hover:bg-gray-200"
+              >
+                Dev login
+              </a>
+            </div>
           ) : !status.github_connected ? (
             <>
-              <p>Signed in as <strong>{status.username}</strong></p>
+              <div className="flex items-center justify-between">
+                <p>Signed in as <strong>{status.username}</strong></p>
+                <button
+                  onClick={async () => {
+                    await fetch("/api/dev-login", { method: "DELETE" });
+                    setStatus({ replit_authed: false, github_connected: false, username: null });
+                    setUserProfile(null);
+                    setConnectedRepos([]);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  log out
+                </button>
+              </div>
               <a
                 href="/api/auth/github"
                 className="inline-block px-3 py-1 bg-white text-black rounded text-xs hover:bg-gray-200"
@@ -203,9 +314,37 @@ export default function TestPage() {
               </a>
             </>
           ) : (
-            <p>
-              Signed in as <strong>{status.username}</strong> · GitHub connected
-            </p>
+            <div className="flex items-center justify-between">
+              <p>
+                Signed in as <strong>{status.username}</strong> · GitHub connected
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    await fetch("/api/auth/github/disconnect", { method: "POST" });
+                    setStatus((s) => s ? { ...s, github_connected: false } : s);
+                    setUserProfile(null);
+                    setConnectedRepos([]);
+                  }}
+                  className="text-xs text-gray-500 hover:text-red-400"
+                >
+                  disconnect GitHub
+                </button>
+                <button
+                  onClick={async () => {
+                    await fetch("/api/dev-login", { method: "DELETE" });
+                    setStatus({ replit_authed: false, github_connected: false, username: null });
+                    setUserProfile(null);
+                    setConnectedRepos([]);
+                    setCurrentSession(null);
+                    setSessionId(null);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  log out
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
@@ -222,18 +361,38 @@ export default function TestPage() {
               </button>
               {repos && (
                 <ul className="border border-gray-700 rounded divide-y divide-gray-800">
-                  {repos.map((r) => (
-                    <li
-                      key={r.full_name}
-                      onClick={() => selectRepo(r.full_name)}
-                      className="px-3 py-2 cursor-pointer hover:bg-gray-900 flex justify-between items-center"
-                    >
-                      <span className="text-white">{r.full_name}</span>
-                      <span className="text-gray-400 text-xs">
-                        {r.private ? "private" : "public"}
-                      </span>
-                    </li>
-                  ))}
+                  {repos.map((r) => {
+                    const isConnected = connectedRepos.some((cr) => cr.full_name === r.full_name);
+                    return (
+                      <li
+                        key={r.full_name}
+                        className="px-3 py-2 flex justify-between items-center hover:bg-gray-900"
+                      >
+                        <span
+                          className="text-white cursor-pointer flex-1"
+                          onClick={() => selectRepo(r.full_name)}
+                        >
+                          {r.full_name}
+                        </span>
+                        <div className="flex gap-2 items-center shrink-0">
+                          <span className="text-gray-400 text-xs">
+                            {r.private ? "private" : "public"}
+                          </span>
+                          <button
+                            onClick={() => connectRepo(r.full_name)}
+                            className={`px-2 py-0.5 text-xs rounded border ${
+                              isConnected
+                                ? "border-gray-600 text-gray-500 cursor-default"
+                                : "border-gray-400 text-gray-200 hover:bg-gray-800"
+                            }`}
+                            disabled={isConnected}
+                          >
+                            {isConnected ? "connected" : "connect"}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -359,6 +518,84 @@ export default function TestPage() {
                 </div>
               )}
             </div>
+
+            {/* My Account */}
+            {userProfile && (
+              <div className="border border-gray-700 rounded p-3 space-y-3">
+                <h2 className="text-xs font-bold text-gray-300 uppercase tracking-wider">My Account</h2>
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={userProfile.github_avatar} alt="" className="w-8 h-8 rounded-full" />
+                  <div>
+                    <p className="text-white font-semibold">{userProfile.github_username}</p>
+                    <p className="text-gray-500 text-[11px]">
+                      joined {userProfile.created_at?.slice(0, 10) ?? '—'} · active {userProfile.last_active?.slice(0, 10) ?? '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {connectedRepos.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-400">Connected repos</p>
+                    <ul className="border border-gray-800 rounded divide-y divide-gray-800">
+                      {connectedRepos.map((cr) => (
+                        <li key={cr.full_name} className="px-3 py-2 flex justify-between items-center">
+                          <span className="text-white text-xs">{cr.full_name}</span>
+                          <div className="flex gap-2 items-center text-[11px] shrink-0">
+                            <span className="text-gray-500">{cr.connected_at.slice(0, 10)}</span>
+                            <button
+                              onClick={() => startSession(cr.full_name)}
+                              className="px-2 py-0.5 border border-gray-600 rounded text-gray-300 hover:bg-gray-800"
+                            >
+                              start session
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Current Session */}
+            {currentSession && (
+              <div className="border border-gray-700 rounded p-3 space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <h2 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Current Session</h2>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("walkthru_session_id");
+                      setSessionId(null);
+                      setCurrentSession(null);
+                    }}
+                    className="text-[11px] text-gray-500 hover:text-gray-300"
+                  >
+                    clear
+                  </button>
+                </div>
+                <div className="text-xs space-y-1">
+                  <p className="text-gray-400">{currentSession.repo}</p>
+                  <p className="text-white">
+                    Score: <span className="font-bold">{currentSession.score}</span>
+                    <span className="text-gray-500"> / {currentSession.total}</span>
+                  </p>
+                </div>
+                {currentSession.attempts.length > 0 && (
+                  <ul className="space-y-1 max-h-48 overflow-y-auto">
+                    {currentSession.attempts.map((a, i) => (
+                      <li key={i} className="flex gap-2 items-start text-[11px]">
+                        <span className={a.correct ? "text-green-400" : "text-red-400"}>
+                          {a.correct ? "✓" : "✗"}
+                        </span>
+                        <span className="text-gray-300 flex-1">{a.question}</span>
+                        {a.hint && <span className="text-gray-500 italic">{a.hint}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

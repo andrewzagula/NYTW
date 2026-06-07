@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getSessionUser, storeGithubToken } from "@/lib/auth";
+import { upsertUser } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -59,6 +60,21 @@ export async function GET(request: NextRequest) {
   }
 
   await storeGithubToken(user.id, tokenData.access_token);
+
+  try {
+    const ghUserRes = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    if (ghUserRes.ok) {
+      const ghUser = await ghUserRes.json() as { login: string; avatar_url: string };
+      await upsertUser(user.id, {
+        github_username: ghUser.login,
+        github_avatar: ghUser.avatar_url,
+      });
+    }
+  } catch {
+    // non-fatal — token is stored, profile upsert can be retried later
+  }
 
   return NextResponse.redirect(new URL("/test", request.url));
 }
