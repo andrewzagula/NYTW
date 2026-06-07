@@ -20,7 +20,21 @@ const COLUMNS = [
   },
 ];
 
-export function SiteFooter() {
+type SiteFooterProps = {
+  minimal?: boolean;
+};
+
+export function SiteFooter({ minimal = false }: SiteFooterProps) {
+  if (minimal) {
+    return (
+      <footer className="border-t border-border bg-background">
+        <div className="mx-auto max-w-6xl px-5 py-6 font-mono text-xs text-muted-foreground sm:px-8">
+          <span>© {new Date().getFullYear()} Walkthru</span>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer className="border-t border-border bg-background">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-16 sm:px-8 md:grid-cols-[1.5fr_1fr_1fr]">

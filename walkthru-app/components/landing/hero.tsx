@@ -4,13 +4,13 @@ import { CopyButton } from "@/components/shared/copy-button";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-vermillion text-hero-ink">
+    <section className="relative flex flex-1 flex-col justify-center overflow-hidden bg-vermillion text-hero-ink">
       <div className="absolute inset-0 bg-grid-hero opacity-60" />
       <div className="pointer-events-none absolute -right-24 top-1/2 hidden -translate-y-1/2 select-none text-[22rem] font-black leading-none text-hero-ink/[0.06] md:block">
         ◢
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-36 sm:px-8 sm:pb-28 sm:pt-44">
+      <div className="relative mx-auto w-full max-w-6xl px-5 py-24 sm:px-8">
         <h1 className="max-w-4xl font-display text-5xl font-black leading-[0.95] tracking-tight text-balance sm:text-6xl lg:text-7xl">
           Understand your agent&apos;s code{" "}
           <span className="italic underline  underline-offset-16">
