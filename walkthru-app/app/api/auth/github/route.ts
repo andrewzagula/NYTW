@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: "repo,read:user",
-    redirect_uri: `${appUrl}/api/auth/github/callback`,
+    redirect_uri: `https://${appUrl}/api/auth/github/callback`,
     state,
   });
 
