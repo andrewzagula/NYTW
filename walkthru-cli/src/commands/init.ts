@@ -1,6 +1,8 @@
 import { execFileSync } from "child_process";
 import { existsSync, writeFileSync } from "fs";
 import chalk from "chalk";
+import { getToken } from "../lib/config.js";
+import { login } from "./login.js";
 
 const POST_COMMIT_HOOK = `#!/bin/sh
 walkthru hook post-commit || true
@@ -36,6 +38,18 @@ function installHook(name: string, script: string): void {
 
 export async function init() {
   ensureGitRepo();
+
+  // Sign in up front so the commit hooks have a token; otherwise the first
+  // commit's hook fails with "Missing bearer token". If sign-in fails the user
+  // can still finish setup and run `walkthru login` later.
+  if (!(await getToken())) {
+    try {
+      await login();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.yellow(`\n  Sign-in skipped — ${message}. Run \`walkthru login\` later.\n`));
+    }
+  }
 
   installHook("post-commit", POST_COMMIT_HOOK);
   installHook("pre-push", PRE_PUSH_HOOK);

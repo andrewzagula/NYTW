@@ -49,6 +49,18 @@ describe("parseGeneratedQuiz", () => {
     expect(questions.map((q) => q.question)).toEqual(["Q1?", "Q2?", "Q3?"]);
   });
 
+  it("tolerates trailing commas in the model output", () => {
+    const questions = parseGeneratedQuiz(`{
+  "questions": [
+    {"question":"Q1, with a comma?","expectedAnswer":"A1","explanation":"E1",},
+    {"question":"Q2?","expectedAnswer":"A2","explanation":"E2"},
+    {"question":"Q3?","expectedAnswer":"A3","explanation":"E3"},
+  ],
+}`);
+
+    expect(questions.map((q) => q.question)).toEqual(["Q1, with a comma?", "Q2?", "Q3?"]);
+  });
+
   it("rejects malformed JSON", () => {
     expect(() => parseGeneratedQuiz("not json")).toThrow();
   });

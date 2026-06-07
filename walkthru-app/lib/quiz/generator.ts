@@ -59,17 +59,59 @@ function normalizeSnippets(value: unknown): QuizSnippet[] {
   });
 }
 
-function extractJson(text: string): unknown {
+// Models occasionally emit JSON with a trailing comma before a closing
+// `}`/`]` (e.g. `{"a":1,}`), which `JSON.parse` rejects with "Expected
+// double-quoted property name". Strip those so a stray comma doesn't 502 the
+// whole request. Commas inside string literals are left untouched.
+function stripTrailingCommas(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      result += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      result += ch;
+      continue;
+    }
+    if (ch === ",") {
+      // Look ahead past whitespace; drop the comma if the next token closes a
+      // container.
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j++;
+      if (text[j] === "}" || text[j] === "]") continue;
+    }
+    result += ch;
+  }
+  return result;
+}
+
+function parseJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
+    return JSON.parse(stripTrailingCommas(text));
+  }
+}
+
+function extractJson(text: string): unknown {
+  try {
+    return parseJson(text);
+  } catch {
     const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    if (fenced) return JSON.parse(fenced[1]);
+    if (fenced) return parseJson(fenced[1]);
 
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start !== -1 && end > start) {
-      return JSON.parse(text.slice(start, end + 1));
+      return parseJson(text.slice(start, end + 1));
     }
     throw new Error("Quiz generation did not return JSON.");
   }
