@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { MessageSquare } from "lucide-react";
 import { relativeTime } from "@/lib/format";
-import { ScoreChip } from "@/components/shared/score-chip";
 import type { TimelineNode } from "@/lib/timeline/types";
 
 const ROW = 92; // px height per commit row
@@ -33,13 +33,17 @@ export function TimelineGraph({
   owner,
   name,
   activeSha,
+  chatShas = [],
 }: {
   nodes: TimelineNode[];
   owner: string;
   name: string;
   activeSha?: string;
+  /** SHAs that already have a saved chat for the current user. */
+  chatShas?: string[];
 }) {
   const height = nodes.length * ROW;
+  const chatSet = new Set(chatShas);
 
   const lane0 = nodes.map((n, i) => (n.lane === 0 ? i : -1)).filter((i) => i >= 0);
   const lane1 = nodes.map((n, i) => (n.lane === 1 ? i : -1)).filter((i) => i >= 0);
@@ -139,7 +143,7 @@ export function TimelineGraph({
               href={`/repos/${owner}/${name}?commit=${n.sha}`}
               scroll={false}
               aria-current={n.sha === activeSha ? "true" : undefined}
-              className="flex h-full min-w-0 items-center gap-4 pr-4 sm:pr-6"
+              className="group flex h-full min-w-0 items-center gap-4 pr-4 sm:pr-6"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2.5">
@@ -179,8 +183,25 @@ export function TimelineGraph({
                 {relativeTime(n.date)}
               </span>
 
-              <div className="w-[88px] shrink-0 text-right">
-                <ScoreChip score={n.score} />
+              <div className="flex w-[88px] shrink-0 justify-end">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                    n.sha === activeSha
+                      ? "border-vermillion/60 bg-vermillion/10 text-vermillion"
+                      : chatSet.has(n.sha)
+                        ? "border-vermillion/40 bg-card/50 text-foreground group-hover:border-vermillion/60"
+                        : "border-border bg-card/50 text-muted-foreground group-hover:border-vermillion/50 group-hover:text-foreground"
+                  }`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  chat
+                  {chatSet.has(n.sha) && (
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-vermillion"
+                      aria-label="has saved chat"
+                    />
+                  )}
+                </span>
               </div>
             </Link>
           </li>

@@ -102,10 +102,7 @@ export async function GET(request: NextRequest) {
   });
   await storeGithubToken(userId, tokenData.access_token);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const dashboardUrl = appUrl
-    ? new URL("/dashboard", appUrl)
-    : new URL("/dashboard", request.url);
+  const dashboardUrl = new URL("/dashboard", request.nextUrl.origin);
 
   const res = NextResponse.redirect(dashboardUrl);
   setSessionCookies(res, { id: userId, name: ghUser.login });

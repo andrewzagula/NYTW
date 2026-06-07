@@ -1,4 +1,6 @@
+import type { UIMessage } from "ai";
 import { getPool, initDb } from "./postgres";
+import { messagesToRows, rowsToMessages } from "./chat/persistence";
 
 // --- Types ---
 
@@ -294,6 +296,83 @@ export async function recordAttempt(
      WHERE id = $2`,
     [attempt.correct ? 1 : 0, sessionId]
   );
+}
+
+// --- Per-commit chat ---
+
+/** Load a user's saved chat thread for one commit, ordered by seq. */
+export async function getChatMessages(
+  userId: string,
+  repo: string,
+  commitSha: string
+): Promise<UIMessage[]> {
+  const pool = await db();
+  const { rows } = await pool.query(
+    `SELECT id, role, parts
+     FROM chat_messages
+     WHERE user_id = $1 AND repo = $2 AND commit_sha = $3
+     ORDER BY seq`,
+    [userId, repo, commitSha]
+  );
+  return rowsToMessages(rows);
+}
+
+/**
+ * Replace a user's saved chat thread for one commit with `messages`. Called
+ * after a stream finishes, when the full conversation is known.
+ */
+export async function saveChatMessages(
+  userId: string,
+  repo: string,
+  commitSha: string,
+  messages: UIMessage[]
+): Promise<void> {
+  const pool = await db();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM chat_messages
+       WHERE user_id = $1 AND repo = $2 AND commit_sha = $3`,
+      [userId, repo, commitSha]
+    );
+    for (const row of messagesToRows(messages)) {
+      await client.query(
+        `INSERT INTO chat_messages (id, user_id, repo, commit_sha, seq, role, parts)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          row.id,
+          userId,
+          repo,
+          commitSha,
+          row.seq,
+          row.role,
+          JSON.stringify(row.parts ?? []),
+        ]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** SHAs in `repo` that have at least one saved chat message for this user. */
+export async function getCommitsWithChats(
+  userId: string,
+  repo: string
+): Promise<Set<string>> {
+  const pool = await db();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT commit_sha
+     FROM chat_messages
+     WHERE user_id = $1 AND repo = $2`,
+    [userId, repo]
+  );
+  return new Set(rows.map((r) => r.commit_sha as string));
 }
 
 export async function getUserSessions(userId: string): Promise<Session[]> {

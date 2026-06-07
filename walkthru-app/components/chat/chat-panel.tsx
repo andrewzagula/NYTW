@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { ArrowUp, MessageSquare, PanelRightClose, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
@@ -15,6 +15,8 @@ type ChatPanelProps = {
   header: string;
   commitMessage?: string | null;
   suggestions: string[];
+  /** Saved thread for this commit, restored on mount. */
+  initialMessages?: UIMessage[];
 };
 
 export function ChatPanel({
@@ -25,6 +27,7 @@ export function ChatPanel({
   header,
   commitMessage,
   suggestions,
+  initialMessages,
 }: ChatPanelProps) {
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -32,6 +35,7 @@ export function ChatPanel({
   );
   const { messages, sendMessage, status, error, regenerate } = useChat({
     transport,
+    messages: initialMessages,
   });
   const [input, setInput] = useState("");
   const [collapsed, setCollapsed] = useState(false); // desktop
