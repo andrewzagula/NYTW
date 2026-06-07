@@ -29,10 +29,11 @@ export function Hero() {
 
           <div className="inline-flex items-center gap-3 rounded-md border border-hero-ink/20 bg-hero-ink/[0.04] px-4 py-3">
             <code className="font-mono text-sm text-hero-ink">
-              <span className="text-hero-ink/50">$</span> npm i -g @walkthru/cli
+              <span className="text-hero-ink/50">$</span> curl -fsSL
+              https://nytw.vercel.app/install.sh | bash
             </code>
             <CopyButton
-              text="npm i -g @walkthru/cli"
+              text="curl -fsSL https://nytw.vercel.app/install.sh | bash"
               className="text-hero-ink/70 hover:text-hero-ink"
             />
           </div>
