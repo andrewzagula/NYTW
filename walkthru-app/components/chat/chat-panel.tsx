@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { ArrowUp, MessageSquare, PanelRightClose, RotateCcw, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUp,
+  Maximize2,
+  MessageSquare,
+  PanelRightClose,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "./chat-message";
+
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 900;
+const WIDTH_STORAGE_KEY = "walkthru:chat-width";
 
 type ChatPanelProps = {
   owner: string;
@@ -40,6 +52,18 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [collapsed, setCollapsed] = useState(false); // desktop
   const [openMobile, setOpenMobile] = useState(false); // drawer
+  const [fullscreen, setFullscreen] = useState(false); // desktop fullscreen
+  const [width, setWidth] = useState(() => {
+    if (typeof window === "undefined") return MIN_WIDTH + 80;
+    const saved = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
+    return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : MIN_WIDTH + 80;
+  }); // desktop panel width (px)
+  const resizingRef = useRef(false);
+
+  // Persist width changes.
+  useEffect(() => {
+    localStorage.setItem(WIDTH_STORAGE_KEY, String(width));
+  }, [width]);
 
   useEffect(() => {
     if (!openMobile) return;
@@ -49,6 +73,35 @@ export function ChatPanel({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [openMobile]);
+
+  // Drag-to-resize the desktop panel width.
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    resizingRef.current = true;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!resizingRef.current) return;
+      const next = window.innerWidth - e.clientX;
+      const max = Math.min(MAX_WIDTH, window.innerWidth - 360);
+      setWidth(Math.min(max, Math.max(MIN_WIDTH, next)));
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   const busy = status === "submitted" || status === "streaming";
 
@@ -77,18 +130,40 @@ export function ChatPanel({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setCollapsed(true);
-            setOpenMobile(false);
-          }}
-          aria-label="Collapse chat"
-          className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <PanelRightClose className="hidden h-4 w-4 lg:block" />
-          <X className="h-4 w-4 lg:hidden" />
-        </button>
+        <div className="mt-0.5 flex shrink-0 items-center gap-3">
+          {fullscreen ? (
+            <button
+              type="button"
+              onClick={() => setFullscreen(false)}
+              aria-label="Exit fullscreen"
+              className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground lg:flex"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setFullscreen(true)}
+              aria-label="Fullscreen chat"
+              className="hidden text-muted-foreground transition-colors hover:text-foreground lg:block"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setCollapsed(true);
+              setFullscreen(false);
+              setOpenMobile(false);
+            }}
+            aria-label="Collapse chat"
+            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <PanelRightClose className="hidden h-4 w-4 lg:block" />
+            <X className="h-4 w-4 lg:hidden" />
+          </button>
+        </div>
       </div>
 
       {/* thread */}
@@ -172,13 +247,33 @@ export function ChatPanel({
       <aside
         className={cn(
           "hidden shrink-0 border-l border-border lg:block",
-          collapsed ? "lg:w-0 lg:border-l-0" : "lg:w-[400px]",
+          collapsed && "lg:w-0 lg:border-l-0",
         )}
+        style={!collapsed && !fullscreen ? { width } : undefined}
       >
-        {!collapsed && (
-          <div className="sticky top-16 h-[calc(100vh-4rem)]">{panel}</div>
+        {!collapsed && !fullscreen && (
+          <div className="sticky top-16 h-[calc(100vh-4rem)]">
+            {/* drag handle to resize */}
+            <div
+              onPointerDown={startResize}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize chat"
+              className="group absolute left-0 top-0 z-10 flex h-full w-2 -translate-x-1/2 cursor-col-resize items-center justify-center"
+            >
+              <span className="h-10 w-1 rounded-full bg-border transition-colors group-hover:bg-vermillion" />
+            </div>
+            {panel}
+          </div>
         )}
       </aside>
+
+      {/* Desktop fullscreen overlay */}
+      {fullscreen && !collapsed && (
+        <div className="fixed inset-x-0 bottom-0 top-16 z-30 hidden bg-background lg:block">
+          {panel}
+        </div>
+      )}
 
       {/* Mobile (< lg): floating button + drawer */}
       <button

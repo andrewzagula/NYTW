@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { ArrowLeft, GitBranch } from "lucide-react";
 import { TimelineGraph } from "@/components/timeline/timeline-graph";
+import { BranchSwitcher } from "@/components/timeline/branch-switcher";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import {
   chatHeader,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/chat/context";
 import { getSessionUser, getGithubToken } from "@/lib/auth/server";
 import { getChatMessages, getCommitsWithChats } from "@/lib/db";
-import { fetchAllCommits, fetchRepoMeta } from "@/lib/github";
+import { fetchAllCommits, fetchRepoBranches, fetchRepoMeta } from "@/lib/github";
 import { toTimelineNodes } from "@/lib/timeline/from-commits";
 
 async function buildRequest(): Promise<Request> {
@@ -28,10 +29,10 @@ export default async function RepoTimelinePage({
   searchParams,
 }: {
   params: Promise<{ owner: string; name: string }>;
-  searchParams: Promise<{ commit?: string }>;
+  searchParams: Promise<{ branch?: string; commit?: string }>;
 }) {
   const { owner, name } = await params;
-  const { commit: commitSha } = await searchParams;
+  const { branch: branchParam, commit: commitSha } = await searchParams;
 
   const req = await buildRequest();
   const sessionUser = getSessionUser(req);
@@ -40,21 +41,29 @@ export default async function RepoTimelinePage({
   const token = await getGithubToken(sessionUser.id);
   if (!token) redirect("/connect-github");
 
-  const [meta, commits] = await Promise.all([
-    fetchRepoMeta(owner, name, token),
-    fetchAllCommits(owner, name, token, 100),
-  ]);
-
+  const meta = await fetchRepoMeta(owner, name, token);
   if ("error" in meta) {
     if (meta.status === 404) notFound();
     throw new Error(`GitHub repo fetch failed: ${meta.error}`);
   }
+
+  const selectedBranch = branchParam?.trim() || meta.default_branch;
+  const [commits, branchResult] = await Promise.all([
+    fetchAllCommits(owner, name, token, 100, selectedBranch),
+    fetchRepoBranches(owner, name, token),
+  ]);
+
   if ("error" in commits) {
     throw new Error(`GitHub commits fetch failed: ${commits.error}`);
   }
 
+  const branches =
+    "error" in branchResult || branchResult.length === 0
+      ? [meta.default_branch]
+      : branchResult;
+
   const nodes = toTimelineNodes(commits, {
-    main: meta.default_branch,
+    main: selectedBranch,
     feature: "feature",
   });
   const commitNode = commitSha
@@ -112,7 +121,7 @@ export default async function RepoTimelinePage({
             <div className="mt-4 flex items-center gap-4 font-mono text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <GitBranch className="h-3.5 w-3.5" />
-                {meta.default_branch}
+                {selectedBranch}
               </span>
               {meta.language && (
                 <span className="flex items-center gap-1.5">
@@ -124,6 +133,11 @@ export default async function RepoTimelinePage({
               </span>
             </div>
           </div>
+          <BranchSwitcher
+            branches={branches}
+            defaultBranch={meta.default_branch}
+            selectedBranch={selectedBranch}
+          />
         </header>
 
         <div className="mt-8">
@@ -140,6 +154,7 @@ export default async function RepoTimelinePage({
                 nodes={nodes}
                 owner={meta.owner}
                 name={meta.name}
+                branch={selectedBranch}
                 activeSha={commitNode?.sha}
                 chatShas={[...chatShas]}
               />
