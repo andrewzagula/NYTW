@@ -37,6 +37,7 @@ export function mockUIMessageResponse(answer: string): Response {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "x-vercel-ai-ui-message-stream": "v1",
+        "x-accel-buffering": "no",
       },
     },
   );

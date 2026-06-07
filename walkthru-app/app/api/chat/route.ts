@@ -62,13 +62,20 @@ export async function POST(req: Request) {
     hits = await queryIndex(repo.perseusIndexId, question);
   }
 
-  const result = streamText({
-    model: anthropic(MODEL),
-    system: buildSystemPrompt(repo, commitNode, hits),
-    messages: await convertToModelMessages(messages),
-  });
+  try {
+    const result = streamText({
+      model: anthropic(MODEL),
+      system: buildSystemPrompt(repo, commitNode, hits),
+      messages: await convertToModelMessages(messages),
+    });
 
-  return result.toUIMessageStreamResponse({
-    onError: () => "The assistant hit an error. Please retry.",
-  });
+    return result.toUIMessageStreamResponse({
+      onError: () => "The assistant hit an error. Please retry.",
+    });
+  } catch {
+    // Setup-time failure (e.g. malformed messages) — degrade gracefully.
+    return mockUIMessageResponse(
+      "The assistant couldn't process this request. Please retry.",
+    );
+  }
 }

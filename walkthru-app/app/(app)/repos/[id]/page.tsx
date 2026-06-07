@@ -7,7 +7,7 @@ import { TimelineGraph } from "@/components/timeline/timeline-graph";
 import { BranchSwitcher } from "@/components/timeline/branch-switcher";
 import { ScoreChip } from "@/components/shared/score-chip";
 import { ChatPanel } from "@/components/chat/chat-panel";
-import { chatHeader, suggestedPrompts } from "@/lib/chat/context";
+import { chatHeader, chatMode, suggestedPrompts } from "@/lib/chat/context";
 
 export default async function RepoTimelinePage({
   params,
@@ -85,9 +85,10 @@ export default async function RepoTimelinePage({
       </main>
 
       <ChatPanel
+        key={commitNode?.sha ?? "general"}
         repoId={repo.id}
         commitSha={commitNode?.sha ?? null}
-        mode={commitNode ? "commit" : "general"}
+        mode={chatMode(commitNode)}
         header={chatHeader(repo, commitNode)}
         commitMessage={commitNode?.message ?? null}
         suggestions={suggestedPrompts(commitNode)}

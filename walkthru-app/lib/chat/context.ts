@@ -42,7 +42,7 @@ export function buildSystemPrompt(
 ): string {
   const lines: string[] = [
     `You are Walkthru's code assistant for the repository ${repo.owner}/${repo.name}.`,
-    repo.description ? `Repository summary: ${repo.description}` : "",
+    ...(repo.description ? [`Repository summary: ${repo.description}`] : []),
     `Default branch: ${repo.defaultBranch}. Primary language: ${repo.language}.`,
     "Answer questions about this codebase clearly and concisely. Ground every claim in the provided context; if the context does not cover something, say so rather than guessing.",
   ];
@@ -74,7 +74,7 @@ export function buildSystemPrompt(
     );
   }
 
-  return lines.filter(Boolean).join("\n");
+  return lines.join("\n");
 }
 
 export function lastUserText(messages: UIMessage[]): string {
