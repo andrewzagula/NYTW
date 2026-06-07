@@ -10,6 +10,7 @@ import {
   type ChatRepo,
 } from "@/lib/chat/context";
 import { mockUIMessageResponse } from "@/lib/chat/mock-stream";
+import { queryIndex } from "@/lib/perseus";
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -103,10 +104,14 @@ export async function POST(req: Request) {
     return mockUIMessageResponse(scriptedMockAnswer(chatRepo, chatCommit, question));
   }
 
+  // Ground the answer in retrieved code. queryIndex never throws — a miss or
+  // auth/timeout failure returns [] and we answer from metadata + diff alone.
+  const hits = await queryIndex(question);
+
   try {
     const result = streamText({
       model: anthropic(MODEL),
-      system: buildSystemPrompt(chatRepo, chatCommit),
+      system: buildSystemPrompt(chatRepo, chatCommit, hits),
       messages: await convertToModelMessages(messages),
     });
 
