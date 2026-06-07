@@ -107,9 +107,9 @@ The flow works like this:
 1. The developer creates a commit
 2. The CLI reads the final commit SHA, commit message, branch, remote URL, and commit diff
 3. The CLI calls `POST /new-commit`
-4. The API creates a web-based quiz for that commit and returns a URL
+4. The API creates a quiz session, generates 3–5 commit-comprehension questions with Claude, stores the generated questions, and returns a `/q/[sessionId]` URL
 5. The CLI prints the URL in the terminal
-6. The developer opens the URL and answers the quiz in the Walkthru web app
+6. The developer opens the URL and reviews or answers the quiz in the Walkthru web app
 7. The web app stores the answer, score, and commit association
 
 ### Installation
@@ -138,11 +138,29 @@ The hooks are written to `.git/hooks/post-commit` and `.git/hooks/pre-push` and 
 
 ### Question Generation
 
-Questions are not templates with blanks filled in. Claude reads the actual diff and generates a question that:
+Questions are not templates with blanks filled in. When the CLI calls `POST /new-commit`, the backend creates a quiz session and synchronously asks Claude to generate 3–5 questions from the posted commit metadata: description, subject, SHA/correlation id, branch, remote URL, repository name, source, and diff when available.
+
+Claude reads the actual commit context and generates questions that:
 
 - Cannot be answered correctly by just reading the diff literally
 - Requires understanding the purpose, not just the mechanics
 - Is proportional to the complexity of the change — a one-liner gets a simple question, a 300-line refactor gets a harder one
+
+The API stores each generated question with:
+
+- The question text
+- The expected answer
+- An explanation of why the question matters
+- Optional relevant code context or snippets
+
+For v1, `/new-commit` returns only after the questions are ready, so the CLI can print a URL that opens directly to a usable quiz page:
+
+```json
+{
+  "url": "https://walkthru.dev/q/<sessionId>",
+  "sessionId": "<sessionId>"
+}
+```
 
 Examples of generated questions for real-ish diffs:
 
@@ -231,9 +249,30 @@ Every comprehension attempt is stored. Overrides (commits that bypassed the gate
 2. Git writes the commit
 3. The `post-commit` hook reads the final SHA, message, branch, remote URL, and diff
 4. CLI calls `POST /new-commit`
-5. API returns a quiz URL
+5. API validates the CLI token, creates a quiz session, generates 3–5 Claude questions, and returns `/q/[sessionId]`
 6. CLI prints the URL for the developer
 7. If registration fails, Git continues and `pre-push` retries outgoing commits later
+
+### Future Perseus Grounding
+
+Perseus is the planned retrieval layer for grounding quiz generation in the surrounding codebase. The future `/new-commit` flow should:
+
+1. Resolve the posted repository or remote URL to the connected repo record
+2. Read that repo's `perseus_index_id`
+3. Query Perseus with the commit description, subject, and other relevant metadata
+4. Store the Perseus answer plus top-k code hits alongside the generated quiz questions
+5. Render those snippets and explanations on `/q/[sessionId]`
+
+The expected Perseus context shape is an answer-style summary followed by top hits, for example:
+
+```text
+app/protected/tabs/dashboard.tsx:getGreeting returns a greeting based on the current time of day, but the snippet does not contain the logic for determining the current time of day.
+
+Top hits:
+[top_k returned here]
+```
+
+This is intentionally not implemented in the first `/new-commit` pass; the data model leaves room for question-level context and snippets so the retrieval output can be added without changing the CLI payload.
 
 ### Review Flow (Web App)
 

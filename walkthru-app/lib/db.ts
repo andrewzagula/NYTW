@@ -26,13 +26,40 @@ export type Attempt = {
   created_at: string;
 };
 
+export type QuizSnippet = {
+  path: string;
+  lineStart?: number | null;
+  lineEnd?: number | null;
+  snippet: string;
+};
+
+export type QuizQuestion = {
+  id: number;
+  session_id: string;
+  question_order: number;
+  question: string;
+  expected_answer: string;
+  explanation: string;
+  context_summary: string | null;
+  snippets: QuizSnippet[];
+  created_at: string;
+};
+
 export type Session = {
   id: string;
   user_id: string;
   repo: string;
+  commit_sha: string | null;
+  commit_id: string | null;
+  commit_message: string | null;
+  commit_description: string | null;
+  branch: string | null;
+  remote_url: string | null;
+  source: string | null;
   started_at: string;
   score: number;
   total: number;
+  questions: QuizQuestion[];
   attempts: Attempt[];
 };
 
@@ -144,14 +171,101 @@ export async function createSession(userId: string, repo: string): Promise<strin
   return sessionId;
 }
 
+export type NewCommitSessionInput = {
+  repo: string;
+  commitSha?: string | null;
+  commitId?: string | null;
+  commitMessage?: string | null;
+  commitDescription: string;
+  branch?: string | null;
+  remoteUrl?: string | null;
+  source?: string | null;
+  questions: Array<{
+    question: string;
+    expectedAnswer: string;
+    explanation: string;
+    contextSummary?: string | null;
+    snippets?: QuizSnippet[];
+  }>;
+};
+
+export async function createNewCommitSession(
+  userId: string,
+  input: NewCommitSessionInput
+): Promise<string> {
+  const pool = await db();
+  const sessionId = crypto.randomUUID();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO sessions (
+         id, user_id, repo, commit_sha, commit_id, commit_message,
+         commit_description, branch, remote_url, source
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        sessionId,
+        userId,
+        input.repo,
+        input.commitSha ?? null,
+        input.commitId ?? null,
+        input.commitMessage ?? null,
+        input.commitDescription,
+        input.branch ?? null,
+        input.remoteUrl ?? null,
+        input.source ?? null,
+      ]
+    );
+
+    for (const [index, question] of input.questions.entries()) {
+      await client.query(
+        `INSERT INTO quiz_questions (
+           session_id, question_order, question, expected_answer,
+           explanation, context_summary, snippets
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          sessionId,
+          index + 1,
+          question.question,
+          question.expectedAnswer,
+          question.explanation,
+          question.contextSummary ?? null,
+          JSON.stringify(question.snippets ?? []),
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    return sessionId;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function getSession(sessionId: string): Promise<Session | null> {
   const pool = await db();
   const { rows: sessionRows } = await pool.query(
-    `SELECT id, user_id, repo, started_at::text, score, total
+    `SELECT id, user_id, repo, commit_sha, commit_id, commit_message,
+            commit_description, branch, remote_url, source,
+            started_at::text, score, total
      FROM sessions WHERE id = $1`,
     [sessionId]
   );
   if (!sessionRows[0]) return null;
+
+  const { rows: questionRows } = await pool.query(
+    `SELECT id, session_id, question_order, question, expected_answer,
+            explanation, context_summary, snippets, created_at::text
+     FROM quiz_questions WHERE session_id = $1
+     ORDER BY question_order`,
+    [sessionId]
+  );
 
   const { rows: attemptRows } = await pool.query(
     `SELECT id, session_id, question, correct, hint, created_at::text
@@ -160,7 +274,7 @@ export async function getSession(sessionId: string): Promise<Session | null> {
     [sessionId]
   );
 
-  return { ...sessionRows[0], attempts: attemptRows };
+  return { ...sessionRows[0], questions: questionRows, attempts: attemptRows };
 }
 
 export async function recordAttempt(
@@ -185,7 +299,9 @@ export async function recordAttempt(
 export async function getUserSessions(userId: string): Promise<Session[]> {
   const pool = await db();
   const { rows: sessionRows } = await pool.query(
-    `SELECT id, user_id, repo, started_at::text, score, total
+    `SELECT id, user_id, repo, commit_sha, commit_id, commit_message,
+            commit_description, branch, remote_url, source,
+            started_at::text, score, total
      FROM sessions WHERE user_id = $1
      ORDER BY started_at DESC`,
     [userId]
@@ -200,10 +316,27 @@ export async function getUserSessions(userId: string): Promise<Session[]> {
     [ids]
   );
 
+  const { rows: questionRows } = await pool.query(
+    `SELECT id, session_id, question_order, question, expected_answer,
+            explanation, context_summary, snippets, created_at::text
+     FROM quiz_questions WHERE session_id = ANY($1)
+     ORDER BY question_order`,
+    [ids]
+  );
+
   const attemptsBySession = attemptRows.reduce<Record<string, Attempt[]>>((acc, a) => {
     (acc[a.session_id] ??= []).push(a);
     return acc;
   }, {});
 
-  return sessionRows.map((s) => ({ ...s, attempts: attemptsBySession[s.id] ?? [] }));
+  const questionsBySession = questionRows.reduce<Record<string, QuizQuestion[]>>((acc, q) => {
+    (acc[q.session_id] ??= []).push(q);
+    return acc;
+  }, {});
+
+  return sessionRows.map((s) => ({
+    ...s,
+    questions: questionsBySession[s.id] ?? [],
+    attempts: attemptsBySession[s.id] ?? [],
+  }));
 }
