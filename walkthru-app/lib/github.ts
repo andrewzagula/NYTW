@@ -131,6 +131,68 @@ export async function fetchCommitDiff(
   };
 }
 
+export interface CommitSummaryEntry {
+  sha: string;
+  date: string;
+  author: string;
+  additions: number;
+  deletions: number;
+}
+
+async function fetchCommitStats(
+  owner: string,
+  repo: string,
+  sha: string,
+  token: string
+): Promise<{ additions: number; deletions: number } | null> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { stats?: { additions: number; deletions: number } };
+  return data.stats ?? { additions: 0, deletions: 0 };
+}
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function run(): Promise<void> {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => run()));
+  return results;
+}
+
+export async function fetchCommitsSummary(
+  owner: string,
+  repo: string,
+  token: string,
+  limit = 500
+): Promise<CommitSummaryEntry[] | GitHubError> {
+  const commits = await fetchAllCommits(owner, repo, token, limit);
+  if ("error" in commits) return commits;
+
+  const summary = await runWithConcurrency(commits, 8, async (c) => {
+    const stats = await fetchCommitStats(owner, repo, c.sha, token);
+    return {
+      sha: c.sha,
+      date: c.date,
+      author: c.author,
+      additions: stats?.additions ?? 0,
+      deletions: stats?.deletions ?? 0,
+    };
+  });
+
+  return summary;
+}
+
 export async function fetchUserRepos(
   token: string
 ): Promise<Repo[] | GitHubError> {

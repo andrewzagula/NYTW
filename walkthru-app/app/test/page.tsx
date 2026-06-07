@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Timeline, type CommitSummaryEntry } from "./components/Timeline";
 
 interface AuthStatus {
   replit_authed: boolean;
@@ -52,6 +53,9 @@ export default function TestPage() {
   const [openSha, setOpenSha] = useState<string | null>(null);
   const [diffs, setDiffs] = useState<Record<string, CommitDetail | { error: string }>>({});
   const [diffLoading, setDiffLoading] = useState<string | null>(null);
+  const [summary, setSummary] = useState<CommitSummaryEntry[] | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/status")
@@ -67,6 +71,8 @@ export default function TestPage() {
     setCommits(null);
     setOpenSha(null);
     setDiffs({});
+    setSummary(null);
+    setSummaryError(null);
     try {
       const r = await fetch(
         `/api/commits?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
@@ -74,14 +80,45 @@ export default function TestPage() {
       const data = await r.json();
       if (!r.ok) {
         setError(data.error ?? "Request failed");
-      } else {
-        setCommits(data.commits as Commit[]);
-        setCommitTotal(data.total as number);
+        setLoading(false);
+        return;
       }
+      setCommits(data.commits as Commit[]);
+      setCommitTotal(data.total as number);
     } catch {
       setError("Network error");
+      setLoading(false);
+      return;
     }
     setLoading(false);
+
+    setSummaryLoading(true);
+    try {
+      const r = await fetch(
+        `/api/commits-summary?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
+      );
+      const data = await r.json();
+      if (!r.ok) {
+        setSummaryError(data.error ?? "Request failed");
+      } else {
+        setSummary(data.summary as CommitSummaryEntry[]);
+      }
+    } catch {
+      setSummaryError("Network error");
+    }
+    setSummaryLoading(false);
+  }
+
+  function scrollToCommit(sha: string) {
+    const el = document.getElementById(`c-${sha}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-yellow-400");
+      setTimeout(
+        () => el.classList.remove("ring-2", "ring-yellow-400"),
+        1000
+      );
+    }
   }
 
   async function fetchRepos() {
@@ -109,6 +146,8 @@ export default function TestPage() {
     setCommitTotal(null);
     setOpenSha(null);
     setDiffs({});
+    setSummary(null);
+    setSummaryError(null);
   }
 
   async function toggleCommit(sha: string) {
@@ -146,7 +185,7 @@ export default function TestPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="p-6 max-w-4xl font-mono text-sm space-y-6">
+      <div className="p-6 max-w-6xl font-mono text-sm space-y-6">
         <h1 className="text-base font-bold text-white">Walkthru — GitHub OAuth Test</h1>
 
         {/* Auth status */}
@@ -227,14 +266,18 @@ export default function TestPage() {
               {error && <p className="text-red-400 text-xs">{error}</p>}
 
               {commits !== null && (
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-400">{commitTotal} commits</p>
-                  <ul className="border border-gray-700 rounded divide-y divide-gray-800 max-h-[600px] overflow-y-auto">
-                    {commits.map((c) => {
-                      const isOpen = openSha === c.sha;
-                      const diff = diffs[c.sha];
-                      return (
-                        <li key={c.sha} className="text-xs">
+                <div className="flex gap-4 items-start flex-col md:flex-row">
+                  <div className="space-y-1 flex-1 min-w-0 w-full">
+                    <p className="text-xs text-gray-400">{commitTotal} commits</p>
+                    <ul
+                      id="commit-list"
+                      className="border border-gray-700 rounded divide-y divide-gray-800 max-h-[600px] overflow-y-auto"
+                    >
+                      {commits.map((c) => {
+                        const isOpen = openSha === c.sha;
+                        const diff = diffs[c.sha];
+                        return (
+                          <li key={c.sha} id={`c-${c.sha}`} className="text-xs scroll-mt-2">
                           <button
                             onClick={() => toggleCommit(c.sha)}
                             className="w-full text-left px-3 py-1.5 flex gap-2 items-baseline hover:bg-gray-900 text-white"
@@ -303,7 +346,16 @@ export default function TestPage() {
                         </li>
                       );
                     })}
-                  </ul>
+                    </ul>
+                  </div>
+                  <aside className="w-full md:w-[220px] shrink-0 md:sticky md:top-4">
+                    <Timeline
+                      summary={summary}
+                      loading={summaryLoading}
+                      error={summaryError}
+                      onSelectCommit={scrollToCommit}
+                    />
+                  </aside>
                 </div>
               )}
             </div>
