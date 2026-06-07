@@ -255,3 +255,99 @@ RIG-style structure: a full-bleed **red hero** that hard-cuts into a **black bod
 - Exact landing headline/subhead copy — draft in build, easy to tweak.
 - Whether Connect GitHub is skippable — default to required; revisit if onboarding needs a softer path.
 - Commit detail panel, PR view, branch comparison, comprehension analytics — future phases.
+
+---
+
+## 11. AI Chat Panel (repo page) — added 2026-06-07
+
+> Extends the front-end with a server route + LLM + Perseus retrieval. Still **mock-by-default**: works with zero config, upgrades to real Claude + Perseus when keys/index ids are present. Approved approach: graceful backend, `?commit=<sha>` for CLI links.
+
+### 11.1 Goal
+
+After clicking into a repo, show a chatbot panel on the right of the timeline. Two modes: a **general** assistant ("ask anything about this codebase") and a **commit-scoped** assistant opened from the CLI with that commit's context. The brain is an LLM grounded in the connected repo's code via **Perseus**.
+
+### 11.2 Layout
+
+`repos/[id]` becomes a split workspace:
+- **Left:** the existing `TimelineGraph` (unchanged).
+- **Right:** a collapsible `ChatPanel` — full-height, sticky, ~400px. Collapses to a thin reopen strip on desktop; becomes a toggle-button drawer below `lg`.
+- The `(app)` layout already renders children full-width, so the repo page controls its own two-column split.
+
+### 11.3 Two modes (driven by the URL)
+
+- **General** — `/repos/[id]` → header "Ask about `owner/name`", repo-level suggested prompts ("What does this service do?", "Where is auth handled?").
+- **Commit** — `/repos/[id]?commit=<sha>` → the CLI opens this; panel shows the commit chip, LLM is seeded with the commit's message/metadata, prompts switch to "Why this change? / What could break?". Each timeline row also links to `?commit=<sha>` so it's reachable in-app. Read `searchParams.commit` (Next 16: `searchParams` is a `Promise` — `await` it).
+
+### 11.4 Graceful backend — one path, two brains
+
+```
+ChatPanel (useChat) ─POST→ /api/chat ─► assemble context ─► stream back
+                                        ├─ commit meta (mock timeline)
+                                        └─ Perseus retrieval (real mode only)
+                            model: ANTHROPIC_API_KEY && perseusIndexId ? Claude : mock stream
+```
+
+- **Mock mode (default):** `/api/chat` streams a scripted, context-aware answer (references the repo/commit). No key, no network. Consistent with the rest of the app.
+- **Real mode (opt-in):** when `ANTHROPIC_API_KEY` is set **and** the repo has a `perseusIndexId`, the route runs Perseus retrieval against that index, injects the top snippets + commit context into the system prompt, and streams Claude.
+- **Same UI either way** — the swap is one branch in the route; the client streams identically.
+
+### 11.5 Perseus over GitHub-connected repos
+
+Perseus indexes real GitHub repos natively — no custom scanning:
+
+```bash
+perseus index owner/repo            # hosted server clones from GitHub + indexes → returns an index id
+perseus query <index-id> "<q>" --json --no-summary   # query that repo's index
+```
+
+Wiring into Walkthru's existing flows:
+1. **On repo connect** (the GitHub OAuth "select repos" step) → background job: `perseus index owner/repo`, store the returned **index id** on the `Repository` record as `perseus_index_id`.
+2. **On webhook push** (already planned for keeping history current) → re-run `perseus index owner/repo` to refresh.
+3. **At chat time** → `/api/chat` looks up `repo.perseusIndexId` and runs `perseus query <id> …`; answers are grounded in the **actual connected repo**.
+
+Setup/auth: a Walkthru service **`PERSEUS_TOKEN`** (from `perseus login`), optional `PERSEUS_API_URL`. The hosted server clones from GitHub, so **private repos need clone access** (a Perseus GitHub App or account link) — the one item to confirm with perseus.computer; public repos work as-is. Production can call the Perseus HTTP API directly (the CLI wraps it) instead of shelling out.
+
+### 11.6 Tech
+
+- **Vercel AI SDK v6** — `ai@6`, `@ai-sdk/anthropic`, `@ai-sdk/react` (installed). Client: `useChat`. Route: `streamText(...).toUIMessageStreamResponse()`. Mock path: a simulated stream (`simulateReadableStream` / `MockLanguageModel`) so the client protocol is identical.
+- **Model:** `claude-opus-4-8` (per the claude-api skill default), overridable via `WALKTHRU_CHAT_MODEL` env. Direct Anthropic provider keyed by `ANTHROPIC_API_KEY` (not the Gateway, since the design keys real mode off that var).
+
+### 11.7 Files
+
+- `app/api/chat/route.ts` — POST handler; graceful model select; assemble context.
+- `lib/perseus.ts` — server wrapper: `queryIndex(indexId, question)` over the CLI/HTTP API (JSON).
+- `lib/chat/context.ts` — build system prompt from repo + optional commit + Perseus hits; scripted mock answers.
+- `components/chat/chat-panel.tsx`, `chat-message.tsx` — UI (vermillion/terminal styling, mono), suggested prompts, mode header, collapse/drawer.
+- Edit `app/(app)/repos/[id]/page.tsx` — split layout, read `searchParams.commit`, pass repo + commit to the panel; link timeline rows to `?commit=<sha>`.
+- `lib/mock/repos.ts` — add `perseusIndexId?: string` to `MockRepo`.
+
+### 11.8 Data-model addition
+
+- `Repository` gains `perseus_index_id` (nullable text) — set by the connect/webhook indexing jobs.
+- Mock: `perseusIndexId?` on `MockRepo`; left unset by default. One mock repo MAY point at a real public repo's index id so real mode is demoable once a `PERSEUS_TOKEN` exists.
+
+### 11.9 Error handling
+
+- Perseus miss / error → answer without code context (the reply notes it); never hard-fail the chat.
+- LLM error → surfaced inline in the thread with a retry.
+- Mock mode never hard-fails.
+
+### 11.10 Caveats (honest)
+
+- Mock mode does no real retrieval. Real mode requires both a key and a `perseusIndexId`.
+- "Commit context" is the commit message/metadata (the mock has no real diffs); upgrades to the real diff when GitHub data lands.
+- The mock repos aren't real GitHub repos, so until one is pointed at a real public index id, real mode has nothing to ground against.
+
+### 11.11 Success criteria
+
+- Repo page shows the timeline (left) + collapsible chat panel (right); responsive drawer under `lg`.
+- General mode and `?commit=<sha>` commit mode each render with the right header + suggested prompts.
+- Sending a message streams a reply (mock by default) with no errors.
+- With `ANTHROPIC_API_KEY` + a repo `perseusIndexId` present, the route streams Claude grounded in Perseus hits — no UI change.
+- Swapping mock→real touches only `/api/chat` + `lib/`.
+
+### 11.12 Open questions / deferred
+
+- Private-repo clone access mechanism for Perseus (confirm with perseus.computer).
+- Whether to persist chat threads (out of scope now; ephemeral per page load).
+- Answer caching (`CachedAnswer` in the data model) — later.
