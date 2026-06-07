@@ -132,17 +132,29 @@ print_step "Installing Walkthru CLI"
 cd "$SCRIPT_DIR"
 bun install
 bun run build
+
+if [[ ! -f "$SCRIPT_DIR/dist/index.js" ]]; then
+  printf 'Build did not produce dist/index.js; cannot link walkthru.\n' >&2
+  exit 1
+fi
+
 bun link
 
 print_step "Installed binary"
-if command -v walkthru >/dev/null 2>&1; then
-  command -v walkthru
-else
+if ! command -v walkthru >/dev/null 2>&1; then
   printf 'walkthru was linked, but the Bun global bin directory is not on PATH.\n' >&2
   printf 'Add this directory to PATH, then rerun this installer:\n' >&2
   bun pm bin -g >&2
   exit 1
 fi
+
+# command -v succeeds even for a dangling symlink, so confirm it actually runs.
+if ! walkthru --version >/dev/null 2>&1; then
+  printf 'walkthru is on PATH but failed to run (likely a stale/dangling link).\n' >&2
+  printf 'Re-run this installer after ensuring the build succeeded.\n' >&2
+  exit 1
+fi
+command -v walkthru
 
 print_step "Available commands"
 walkthru --help

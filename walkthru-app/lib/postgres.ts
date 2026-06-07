@@ -80,5 +80,22 @@ export async function initDb(): Promise<void> {
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (session_id, question_order)
     );
+
+    -- Per-commit chat threads, private to each user. One row per message,
+    -- ordered by seq within (user_id, repo, commit_sha).
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id         TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      repo       TEXT NOT NULL,
+      commit_sha TEXT NOT NULL,
+      seq        INTEGER NOT NULL,
+      role       TEXT NOT NULL,
+      parts      JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, repo, commit_sha, seq)
+    );
+
+    CREATE INDEX IF NOT EXISTS chat_messages_thread_idx
+      ON chat_messages (user_id, repo, commit_sha);
   `);
 }

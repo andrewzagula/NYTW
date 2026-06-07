@@ -4,11 +4,10 @@ import { CLI_PORT_COOKIE, OAUTH_STATE_COOKIE } from "@/lib/auth/server";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  if (!clientId || !appUrl) {
+  if (!clientId) {
     return NextResponse.json(
-      { error: "Missing GITHUB_CLIENT_ID or NEXT_PUBLIC_APP_URL" },
+      { error: "Missing GITHUB_CLIENT_ID" },
       { status: 500 }
     );
   }
@@ -20,7 +19,10 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: "repo,read:user",
-    redirect_uri: `https://${appUrl}/api/auth/github/callback`,
+    redirect_uri: new URL(
+      "/api/auth/github/callback",
+      request.nextUrl.origin
+    ).toString(),
     state,
   });
 

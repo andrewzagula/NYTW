@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { getSessionUser, getGithubToken } from "@/lib/auth/server";
+import { saveChatMessages } from "@/lib/db";
 import { fetchRepoMeta, fetchCommitDiff } from "@/lib/github";
 import {
   buildSystemPrompt,
@@ -11,6 +12,25 @@ import {
 } from "@/lib/chat/context";
 import { mockUIMessageResponse } from "@/lib/chat/mock-stream";
 import { queryIndex } from "@/lib/perseus";
+
+/**
+ * Persist a per-commit chat thread, swallowing any DB error so a storage
+ * failure never breaks the chat response. No-op unless we know the user and the
+ * commit (general repo chat is intentionally not saved).
+ */
+async function persistThread(
+  userId: string | undefined,
+  repo: string,
+  commitSha: string | undefined,
+  messages: UIMessage[],
+): Promise<void> {
+  if (!userId || !commitSha) return;
+  try {
+    await saveChatMessages(userId, repo, commitSha, messages);
+  } catch (err) {
+    console.error("Failed to save chat thread", err);
+  }
+}
 
 // Allow streaming responses up to 30 seconds.
 export const maxDuration = 30;
@@ -98,10 +118,20 @@ export async function POST(req: Request) {
     chatCommit = { sha: commitSha, message: "", author: "" };
   }
 
+  const repo = `${owner}/${name}`;
   const realMode = Boolean(process.env.ANTHROPIC_API_KEY);
 
   if (!realMode) {
-    return mockUIMessageResponse(scriptedMockAnswer(chatRepo, chatCommit, question));
+    const answer = scriptedMockAnswer(chatRepo, chatCommit, question);
+    await persistThread(sessionUser?.id, repo, commitSha, [
+      ...messages,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        parts: [{ type: "text", text: answer }],
+      },
+    ]);
+    return mockUIMessageResponse(answer);
   }
 
   // Ground the answer in retrieved code. queryIndex never throws — a miss or
@@ -116,6 +146,10 @@ export async function POST(req: Request) {
     });
 
     return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      onFinish: ({ messages: finalMessages }) => {
+        void persistThread(sessionUser?.id, repo, commitSha, finalMessages);
+      },
       onError: () => "The assistant hit an error. Please retry.",
     });
   } catch {

@@ -9,7 +9,7 @@ Next.js 16 web app for the Walkthru developer comprehension platform.
 | `GITHUB_CLIENT_ID` | OAuth App client ID from GitHub |
 | `GITHUB_CLIENT_SECRET` | OAuth App client secret from GitHub |
 | `NEXTAUTH_SECRET` | Random string (reserved for future signing) |
-| `NEXT_PUBLIC_APP_URL` | Deployed app URL, e.g. `https://walkthru.replit.app` |
+| `NEXT_PUBLIC_APP_URL` | Optional canonical app URL for generated links, e.g. `https://walkthru.replit.app` |
 
 On Replit these are set as Secrets. For local dev, create a `.env.local` file:
 
@@ -26,7 +26,8 @@ REPLIT_DB_URL=your_replit_db_url
 1. Go to **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**
 2. Set **Application name**: `Walkthru` (or any name)
 3. Set **Homepage URL**: your app URL (e.g. `https://walkthru.replit.app`)
-4. Set **Authorization callback URL**: `https://walkthru.replit.app/api/auth/github/callback`
+4. Set **Authorization callback URL** to the exact production callback users will hit:
+   `https://your-production-host/api/auth/github/callback`
    - For local dev: `http://localhost:3000/api/auth/github/callback`
 5. Click **Register application**, then generate a client secret
 6. Copy the Client ID and Client Secret into your environment variables

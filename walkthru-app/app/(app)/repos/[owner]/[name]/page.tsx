@@ -12,6 +12,7 @@ import {
   type ChatCommit,
 } from "@/lib/chat/context";
 import { getSessionUser, getGithubToken } from "@/lib/auth/server";
+import { getChatMessages, getCommitsWithChats } from "@/lib/db";
 import { fetchAllCommits, fetchRepoMeta } from "@/lib/github";
 import { toTimelineNodes } from "@/lib/timeline/from-commits";
 
@@ -76,6 +77,16 @@ export default async function RepoTimelinePage({
       }
     : null;
 
+  // Saved per-commit chats (private to this user). Load failures degrade to an
+  // empty timeline indicator / empty thread rather than breaking the page.
+  const repoFullName = `${meta.owner}/${meta.name}`;
+  const [chatShas, savedMessages] = await Promise.all([
+    getCommitsWithChats(sessionUser.id, repoFullName).catch(() => new Set<string>()),
+    commitNode
+      ? getChatMessages(sessionUser.id, repoFullName, commitNode.sha).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
   return (
     <div className="flex">
       <main className="min-w-0 flex-1 px-5 py-10 sm:px-8">
@@ -130,6 +141,7 @@ export default async function RepoTimelinePage({
                 owner={meta.owner}
                 name={meta.name}
                 activeSha={commitNode?.sha}
+                chatShas={[...chatShas]}
               />
             </div>
           )}
@@ -145,6 +157,7 @@ export default async function RepoTimelinePage({
         header={chatHeader(chatRepo, chatCommit)}
         commitMessage={commitNode?.message ?? null}
         suggestions={suggestedPrompts(chatCommit)}
+        initialMessages={savedMessages}
       />
     </div>
   );
