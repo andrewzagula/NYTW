@@ -16,6 +16,9 @@ export interface Repo {
   private: boolean;
   updated_at: string;
   description: string | null;
+  owner?: { login: string };
+  default_branch?: string;
+  language?: string | null;
 }
 
 export type GitHubError = { error: string; status: number };
@@ -214,6 +217,9 @@ export async function fetchUserRepos(
     private: boolean;
     updated_at: string;
     description: string | null;
+    owner?: { login: string };
+    default_branch?: string;
+    language?: string | null;
   }>;
 
   return data.map((r) => ({
@@ -222,5 +228,82 @@ export async function fetchUserRepos(
     private: r.private,
     updated_at: r.updated_at,
     description: r.description,
+    owner: r.owner,
+    default_branch: r.default_branch,
+    language: r.language,
   }));
+}
+
+export async function fetchRepoDetails(
+  owner: string,
+  repo: string,
+  token: string
+): Promise<Repo | GitHubError> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      error: (body as { message?: string }).message ?? res.statusText,
+      status: res.status,
+    };
+  }
+
+  const data = (await res.json()) as {
+    name: string;
+    full_name: string;
+    private: boolean;
+    updated_at: string;
+    description: string | null;
+    owner?: { login: string };
+    default_branch?: string;
+    language?: string | null;
+  };
+
+  return data;
+}
+
+export async function fetchRepoBranches(
+  owner: string,
+  repo: string,
+  token: string
+): Promise<string[] | GitHubError> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches?per_page=100`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      error: (body as { message?: string }).message ?? res.statusText,
+      status: res.status,
+    };
+  }
+
+  const data = (await res.json()) as Array<{ name: string }>;
+  return data.map((b) => b.name);
+}
+
+export async function fetchOpenPullRequestCount(
+  owner: string,
+  repo: string,
+  token: string
+): Promise<number | GitHubError> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=1`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      error: (body as { message?: string }).message ?? res.statusText,
+      status: res.status,
+    };
+  }
+
+  const link = res.headers.get("link");
+  const last = link?.match(/[?&]page=(\d+)>;\s*rel="last"/)?.[1];
+  if (last) return Number(last);
+
+  const data = (await res.json()) as unknown[];
+  return data.length;
 }
