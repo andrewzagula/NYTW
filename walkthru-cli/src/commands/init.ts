@@ -1,37 +1,50 @@
+import { execFileSync } from "child_process";
 import { existsSync, writeFileSync } from "fs";
-import { join } from "path";
 import chalk from "chalk";
 
-const HOOK_SCRIPT = `#!/bin/sh
-walkthru hook commit-msg "$1"
+const POST_COMMIT_HOOK = `#!/bin/sh
+walkthru hook post-commit || true
+`;
+
+const PRE_PUSH_HOOK = `#!/bin/sh
+walkthru hook pre-push "$@" || true
 `;
 
 const DEFAULT_CONFIG = {
-  threshold: 70,
-  allowOverride: true,
-  overrideRequiresNote: true,
-  questionTypes: ["explain", "impact", "risk"],
-  exemptPaths: ["*.md", "*.lock", "generated/**"],
-  minDiffLines: 10,
+  includeDiff: true,
+  maxDiffBytes: 120000,
 };
 
-export async function init() {
-  const gitDir = join(process.cwd(), ".git");
+function gitPath(path: string): string {
+  return execFileSync("git", ["rev-parse", "--git-path", path], { encoding: "utf-8" }).trim();
+}
 
-  if (!existsSync(gitDir)) {
+function ensureGitRepo(): void {
+  try {
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { stdio: "ignore" });
+  } catch {
     console.error(chalk.red("\n  Not a git repository.\n"));
     process.exit(1);
   }
+}
 
-  const hookPath = join(gitDir, "hooks", "commit-msg");
-  writeFileSync(hookPath, HOOK_SCRIPT, { mode: 0o755 });
-  console.log(chalk.dim("  Installed .git/hooks/commit-msg"));
+function installHook(name: string, script: string): void {
+  const hookPath = gitPath(`hooks/${name}`);
+  writeFileSync(hookPath, script, { mode: 0o755 });
+  console.log(chalk.dim(`  Installed ${hookPath}`));
+}
 
-  const configPath = join(process.cwd(), ".walkthru.json");
+export async function init() {
+  ensureGitRepo();
+
+  installHook("post-commit", POST_COMMIT_HOOK);
+  installHook("pre-push", PRE_PUSH_HOOK);
+
+  const configPath = ".walkthru.json";
   if (!existsSync(configPath)) {
     writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2));
     console.log(chalk.dim("  Created .walkthru.json"));
   }
 
-  console.log(chalk.green("\n  Hook installed. Walkthru will run on every commit.\n"));
+  console.log(chalk.green("\n  Hooks installed. Walkthru will register commits after commit and before push.\n"));
 }

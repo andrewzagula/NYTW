@@ -27,10 +27,10 @@ readable and traceable.
 
 ## Required Agent Workflow
 
-Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
-every time you create a commit, update a PR branch, or push changes. This is
-mandatory agent hygiene for this repository. Pass the commit body or expanded
-description as the required commit description argument.
+Run `walkthru init` once so git hooks register commits automatically. Use
+`walkthru new-commit "<commit description>" --message "<commit subject>"`
+manually only when hooks are unavailable or an external workflow needs to
+create a Walkthru quiz URL.
 
 Before committing code, make sure Walkthru is initialized:
 
@@ -52,10 +52,29 @@ walkthru open
 walkthru login
 walkthru init
 walkthru new-commit "<commit description>" --message "<commit subject>"
-walkthru hook commit-msg <msg-file>
+walkthru hook post-commit
+walkthru hook pre-push
 walkthru --help
 walkthru --version
 ```
+
+## Product Direction
+
+Today the hooks register commits with the backend and print the quiz URL
+returned by `POST /new-commit`. Eventually, the CLI should also render and
+submit the quiz directly in the terminal while still using the backend as the
+source of truth. Treat the CLI as another frontend for the same quiz workflow,
+not as a separate grading system.
+
+Structural expectations:
+
+- Keep commit registration separate from quiz presentation.
+- Keep backend APIs responsible for creating questions, accepting answers,
+  grading, and storing attempts.
+- Add terminal quiz commands as a second UI over backend quiz/session endpoints.
+- Preserve the web URL flow as a fallback when the terminal is non-interactive
+  or a richer web experience is preferred.
+- Avoid local-only question generation or local-only grading in hooks.
 
 ## Command Guide
 
@@ -63,31 +82,29 @@ walkthru --version
 - `walkthru open` opens the same interactive menu explicitly.
 - `walkthru login` stores the GitHub token Walkthru needs for authenticated
   workflows.
-- `walkthru init` installs the repo's `.git/hooks/commit-msg` hook and creates
-  `.walkthru.json` if it is missing.
+- `walkthru init` installs the repo's `.git/hooks/post-commit` and
+  `.git/hooks/pre-push` hooks and creates `.walkthru.json` if it is missing.
 - `walkthru new-commit "<commit description>" --message "<commit subject>"`
-  registers a commit attempt with Walkthru. Agents must run this after every
-  commit, PR update, and push. Use `--commit-id <correlation-id>` when an
-  external correlation id is available.
-- `walkthru hook commit-msg <msg-file>` is an internal git hook entrypoint.
-  Do not call it manually unless you are debugging the hook.
+  manually registers a commit attempt with Walkthru. Use `--commit-id
+  <correlation-id>` when an external correlation id is available.
+- `walkthru hook post-commit` and `walkthru hook pre-push` are internal git hook
+  entrypoints. Do not call them manually unless you are debugging the hooks.
 
 ## Commit Hook Behavior
 
-After `walkthru init`, git calls Walkthru during `git commit`. The hook reads
-the staged diff, asks a comprehension question when the diff is large enough,
-grades the answer, and blocks the commit if the answer does not meet the
-configured threshold.
+After `walkthru init`, git calls Walkthru after every commit and before every
+push. The post-commit hook registers the final commit SHA and prints the quiz
+URL returned by the API. The pre-push hook retries outgoing commits that were
+not registered locally.
 
 The repo-level config lives in `.walkthru.json`.
 
 ## Agent Expectations
 
 - Run `walkthru init` once in this repo before relying on commit checks.
+- Let the installed hooks register normal commits automatically.
 - Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
-  after every commit you make.
-- Run `walkthru new-commit "<commit description>" --message "<commit subject>"`
-  before telling a user a PR branch is ready to push or has been pushed.
+  only when hooks are unavailable or an external workflow needs a quiz URL.
 - Do not remove the Walkthru hook or weaken `.walkthru.json` unless the user
   explicitly asks for that change.
 - If Walkthru fails because auth is missing, run `walkthru login` or tell the
@@ -143,4 +160,4 @@ case "$add_docs" in
     ;;
 esac
 
-printf '\nWalkthru CLI install complete. Try: walkthru new-commit "Describe the commit" --message "commit subject"\n'
+printf '\nWalkthru CLI install complete. In a git repo, run: walkthru init\n'

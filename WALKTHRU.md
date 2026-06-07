@@ -22,7 +22,7 @@ Two surfaces, one data model:
 
 **Walkthru Web App** — the comprehension dashboard. Connects to GitHub, visualizes git history, and surfaces AI-powered Q&A and summaries at the commit, PR, and branch level. This is where teams view comprehension scores, browse diffs with context, and understand the history of a codebase.
 
-**Walkthru CLI** — a git hook wrapper. Intercepts `git commit`, asks the developer to prove they understood what they just wrote, grades their response, and either lets the commit through or blocks it. The score syncs to the web app automatically.
+**Walkthru CLI** — a git hook wrapper. Registers new commits with the Walkthru API, prints a quiz URL for the developer, and lets the web app handle the comprehension check and score syncing.
 
 ---
 
@@ -100,27 +100,27 @@ Team-level view aggregates individual scores so engineering leads can see where 
 
 ### What It Does
 
-The Walkthru CLI installs a `commit-msg` git hook. Every time a developer runs `git commit`, the hook intercepts before the commit is written and runs the comprehension gate.
+The Walkthru CLI installs `post-commit` and `pre-push` git hooks. Every time a developer creates a commit, the `post-commit` hook registers the final commit SHA with the Walkthru API and prints a quiz URL. Before a push, the `pre-push` hook retries registration for outgoing commits that were not already registered locally.
 
-The gate works like this:
+The flow works like this:
 
-1. The diff being committed is sent to the Walkthru API
-2. Claude analyzes the diff and generates a comprehension question tailored to it — not generic, not trivia, something that requires actually understanding what the code does
-3. The developer sees the question in their terminal and types a free-form answer
-4. The answer is graded by Claude on a 0–100 scale against a rubric: does the answer demonstrate understanding of what changed and why?
-5. If the score meets the configured threshold (default: 70), the commit goes through
-6. If not, the developer can try again or override with a flag (which is logged)
-7. The score and answer are synced to the Walkthru web app
+1. The developer creates a commit
+2. The CLI reads the final commit SHA, commit message, branch, remote URL, and commit diff
+3. The CLI calls `POST /new-commit`
+4. The API creates a web-based quiz for that commit and returns a URL
+5. The CLI prints the URL in the terminal
+6. The developer opens the URL and answers the quiz in the Walkthru web app
+7. The web app stores the answer, score, and commit association
 
 ### Installation
 
 ```bash
 npm install -g @walkthru/cli
 walkthru login          # GitHub OAuth
-walkthru init           # installs the git hook into the current repo
+walkthru init           # installs git hooks into the current repo
 ```
 
-The hook is written to `.git/hooks/commit-msg` and calls back into the CLI binary. The binary reads the staged diff, not the working tree, so it sees exactly what's being committed.
+The hooks are written to `.git/hooks/post-commit` and `.git/hooks/pre-push` and call back into the CLI binary. `post-commit` is the primary hook because the final commit SHA exists at that point. `pre-push` is a backstop for commits that were created before hooks were installed or were not registered successfully.
 
 ### Configuration
 
@@ -128,24 +128,13 @@ The hook is written to `.git/hooks/commit-msg` and calls back into the CLI binar
 
 ```json
 {
-  "threshold": 70,
-  "allowOverride": true,
-  "overrideRequiresNote": true,
-  "questionTypes": ["explain", "impact", "risk"],
-  "exemptPaths": ["*.md", "*.lock", "generated/**"],
-  "minDiffLines": 10
+  "includeDiff": true,
+  "maxDiffBytes": 120000
 }
 ```
 
-- `threshold` — minimum score to pass (0–100)
-- `allowOverride` — whether `--skip` flag is permitted; always logged
-- `overrideRequiresNote` — if skipping, forces the developer to type a reason
-- `questionTypes` — what kinds of questions to ask:
-  - `explain` — "Summarize what this change does in your own words"
-  - `impact` — "What behavior changes for users or callers of this code?"
-  - `risk` — "What could go wrong with this change, and how would you detect it?"
-- `exemptPaths` — patterns to skip (docs, lockfiles, generated code)
-- `minDiffLines` — diffs smaller than this skip the gate entirely
+- `includeDiff` — whether hook registration includes the commit patch
+- `maxDiffBytes` — maximum diff payload size sent by the CLI before truncation
 
 ### Question Generation
 
@@ -175,30 +164,16 @@ A score of 100 means the answer would satisfy a skeptical senior engineer in a c
 
 ### Terminal UX
 
-The CLI gate is designed to feel like a respected colleague asking a quick question, not a bureaucratic checkpoint.
+The CLI should be brief: register the commit, show the quiz URL, and keep Git moving.
 
 ```
-  Walkthru — comprehension gate
+  $ git commit -m "feat: add retry policy"
+  [main 4f3a8c2] feat: add retry policy
 
-  Staged: 47 lines across 3 files
-
-  Q: You replaced the forEach loop with a reduce here. What advantage does
-     this give you over the previous approach, and is there any case where
-     it would behave differently?
-
-  A: _
+  Walkthru quiz for 4f3a8c2: https://walkthru.dev/q/4f3a8c2
 ```
 
-After answering:
-
-```
-  Score: 82/100
-
-  "Good explanation of the immutability benefit. Could have mentioned the
-  edge case with an empty array and the initial accumulator."
-
-  Commit proceeding...
-```
+Future CLI versions can render the quiz directly in the terminal, but the terminal should be another frontend for the backend quiz workflow. The backend remains responsible for question creation, answer submission, grading, and attempt storage; the CLI should not fork into a local-only quiz or grading system.
 
 ---
 
@@ -247,19 +222,18 @@ Every comprehension attempt is stored. Overrides (commits that bypassed the gate
 
 1. `npm install -g @walkthru/cli`
 2. `walkthru login` — opens browser for GitHub OAuth, stores token locally
-3. `cd your-repo && walkthru init` — installs the hook, creates `.walkthru.json`
+3. `cd your-repo && walkthru init` — installs the hooks, creates `.walkthru.json`
 4. Optional: commit `.walkthru.json` so the team gets the same config
 
 ### Commit Flow (CLI)
 
 1. Developer stages changes and runs `git commit`
-2. CLI reads the staged diff
-3. If diff is below `minDiffLines` or all paths are in `exemptPaths`, commit passes silently
-4. Otherwise: question appears in terminal, developer types answer
-5. Answer is graded; result shown with brief feedback
-6. If score ≥ threshold: commit written, score synced to web app
-7. If score < threshold: developer is shown which rubric dimensions they missed and offered a retry
-8. After 2 failed attempts: developer can override with `--skip` (if `allowOverride: true`) and type a note
+2. Git writes the commit
+3. The `post-commit` hook reads the final SHA, message, branch, remote URL, and diff
+4. CLI calls `POST /new-commit`
+5. API returns a quiz URL
+6. CLI prints the URL for the developer
+7. If registration fails, Git continues and `pre-push` retries outgoing commits later
 
 ### Review Flow (Web App)
 
@@ -288,10 +262,10 @@ Every comprehension attempt is stored. Overrides (commits that bypassed the gate
 
 ### Phase 3 — CLI
 - CLI binary (`@walkthru/cli`)
-- `commit-msg` hook installation
-- Diff analysis and question generation via API
-- Answer grading and score sync
-- Terminal UX (question → answer → score → feedback)
+- `post-commit` and `pre-push` hook installation
+- Commit registration via API
+- Quiz URL terminal output
+- Local retry state for unregistered commits
 - `.walkthru.json` configuration
 
 ### Phase 4 — Comprehension Dashboard
@@ -328,10 +302,10 @@ nytw/
 
 ## Design Principles
 
-**Friction that teaches, not friction that blocks.** The CLI gate is the one moment of mandatory slowdown. It should feel worthwhile. If developers are consistently hitting 95+ scores effortlessly, the questions aren't hard enough. If they're consistently failing and overriding, the threshold is misconfigured.
+**Friction that teaches, not friction that blocks.** The CLI should get developers to the right quiz at the right time without breaking normal Git flow. The teaching moment happens in the web app, where the question, answer, score, and commit context can live together.
 
 **Ground everything in the actual diff.** No AI feature in Walkthru should work on vibes. Every summary, question, answer, and grade is generated with the real code as context. If the context window doesn't fit the full diff, the most changed files get priority.
 
 **Scores are coaching, not performance reviews.** The comprehension score is visible to team leads but the design discourages punitive use. Trend and improvement matter more than any single score. A 60 on a hard change is more valuable than a 90 on a one-liner.
 
-**Zero friction for blameless commits.** Lockfile updates, generated code, documentation changes — none of these should trigger the gate. The `exemptPaths` config and `minDiffLines` threshold exist specifically so the gate doesn't cry wolf.
+**Zero friction for unavailable services.** Local Git should keep working if the Walkthru API or auth state is unavailable. Hooks should fail open, print a clear diagnostic, and retry registration at push time when possible.

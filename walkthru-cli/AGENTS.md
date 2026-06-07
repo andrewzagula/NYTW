@@ -1,6 +1,18 @@
 # Walkthru CLI Guide for Agents
 
-Use `walkthru new-commit` when you are about to create a Git commit and have already generated the commit subject and body from the staged diff.
+Use `walkthru new-commit` when you need to manually register a commit or planned commit with Walkthru. Normal repositories should run `walkthru init` so git hooks register commits automatically.
+
+## Product Direction
+
+Today the hooks register commits with the backend and print the quiz URL returned by `POST /new-commit`. Eventually, the CLI should also be able to render and submit the quiz directly in the terminal while still using the backend as the source of truth. Treat the CLI as another frontend for the same quiz workflow, not as a separate grading system.
+
+Structural expectations for that future:
+
+- Keep commit registration separate from quiz presentation.
+- Keep backend APIs responsible for creating questions, accepting answers, grading, and storing attempts.
+- Add terminal quiz commands as a second UI over backend quiz/session endpoints.
+- Preserve the web URL flow as a fallback when the terminal is non-interactive or a richer web experience is preferred.
+- Avoid reintroducing local-only question generation or local-only grading in hooks.
 
 ## Command
 
@@ -14,13 +26,13 @@ walkthru new-commit "<commit description>" \
 
 `--message` is optional. Use it for the concise commit subject, for example `feat: add commit registration command`.
 
-`--commit-id` is optional. Use it for a caller-provided correlation id when one is available. This does not need to be a Git commit SHA, because the final SHA usually does not exist before the commit is created.
+`--commit-id` is optional. Use it for a caller-provided correlation id or final Git commit SHA when one is available.
 
 ## Agent Workflow
 
-1. Inspect the staged diff and generate the commit subject and body.
-2. Run `walkthru new-commit`, passing the body as `<commit description>` and the subject as `--message`.
-3. If you have an external correlation id for this commit attempt, pass it as `--commit-id`.
+1. Run `walkthru init` once in a repository to install `post-commit` and `pre-push` hooks.
+2. Let the hooks register commits automatically after commit creation and before push.
+3. Use `walkthru new-commit` manually only when a hook is unavailable or an external workflow needs to create a Walkthru quiz URL.
 4. If the CLI prints a Walkthru URL, display it to the user exactly in this form:
 
 ```text
@@ -41,7 +53,7 @@ Payload:
 {
   "commitDescription": "long body from agent",
   "commitMessage": "optional subject",
-  "commitId": "optional correlation id"
+  "commitId": "optional correlation id or commit SHA"
 }
 ```
 
