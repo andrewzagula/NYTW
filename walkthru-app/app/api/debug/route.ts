@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth/server";
 import { getPool, initDb } from "@/lib/postgres";
 import type { NextRequest } from "next/server";
 

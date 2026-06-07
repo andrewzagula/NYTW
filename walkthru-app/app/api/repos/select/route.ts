@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth/server";
 import { connectRepo } from "@/lib/db";
 
 export async function POST(request: NextRequest) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser, storeGithubToken } from "@/lib/auth";
+import { getSessionUser, storeGithubToken } from "@/lib/auth/server";
 import { upsertUser } from "@/lib/db";
 
 export async function GET(request: NextRequest) {

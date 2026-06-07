@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser, getGithubToken } from "@/lib/auth";
+import { getSessionUser, getGithubToken } from "@/lib/auth/server";
 import { fetchCommitDiff } from "@/lib/github";
 
 export async function GET(

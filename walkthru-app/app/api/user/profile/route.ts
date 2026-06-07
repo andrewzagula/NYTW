@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth/server";
 import { getUser, getUserRepos } from "@/lib/db";
 
 export async function GET(request: NextRequest) {

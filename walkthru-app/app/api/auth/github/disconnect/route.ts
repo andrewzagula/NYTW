@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getSessionUser, deleteGithubToken } from "@/lib/auth";
+import { getSessionUser, deleteGithubToken } from "@/lib/auth/server";
 import { getPool } from "@/lib/postgres";
 
 export async function POST(request: NextRequest) {

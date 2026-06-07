@@ -1,4 +1,4 @@
-import { getPool, initDb } from "./postgres";
+import { getPool, initDb } from "@/lib/postgres";
 
 // --- Cookie helper ---
 
