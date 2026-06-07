@@ -44,7 +44,7 @@ Six screens:
 
 ## 4. Design system
 
-Dark, terminal-influenced. The mono typeface and a single phosphor accent carry the identity; everything else stays restrained so the git data is the color.
+Dark, terminal-influenced, with a bold vermillion accent — drawn from RIG / HydraDB / DOSS / Retool as reference. The landing leads with a full-bleed red hero that hard-cuts to black; every other screen is black with red accents. Heavy grotesque headlines, mono uppercase micro-labels, and technical data motifs (corner brackets, ticker bar, dotted git-graph) carry the identity.
 
 ### Color tokens (defined in `globals.css` `@theme`)
 
@@ -57,33 +57,39 @@ Dark, terminal-influenced. The mono typeface and a single phosphor accent carry 
 | Text primary | `#fafafa` (zinc-50) | Headlines, body |
 | Text secondary | `#a1a1aa` (zinc-400) | Sub-copy, metadata |
 | Text muted | `#71717a` (zinc-500) | Timestamps, hints |
-| **Brand accent** | `#a3e635` (lime-400) | Primary buttons, links, focus rings |
-| Brand hover | `#bef264` (lime-300) | Accent hover |
-| Score low | `#fb7185` (rose-400) | Comprehension score < ~50 |
+| **Brand accent** | `#FF4D2E` (vermillion) | Primary buttons, links, focus rings, mono eyebrows, hero fill |
+| Brand deep | `#E8472B` | Accent hover/pressed, hero gradient/texture |
+| Hero ink | `#0b0b0c` near-black | Headline + nav text **on the red hero** |
+| Score low | `#f43f5e` (rose-500) | Comprehension score < ~50 |
 | Score mid | `#fbbf24` (amber-400) | ~50–75 |
 | Score high | `#34d399` (emerald-400) | > ~75 |
 
-Score colors are deliberately a different hue family from the lime brand accent, so a "good score" green never gets confused with a brand element.
+The brand accent is an orange-leaning vermillion; the low-score color is a pink-leaning rose. They sit in different hue zones so a "bad score" never reads as a brand element. If the two still feel too close in context, the fallback is to render low scores as a **muted/dim** chip rather than rose — which also better fits the "scores are coaching, not punishment" principle.
 
 ### Type
 
 - Sans: Geist Sans. Mono: Geist Mono.
-- Headline scale: hero `text-5xl/6xl` semibold tracking-tight; section `text-3xl`; card title `text-base` mono.
-- Mono is used for: the wordmark, SHAs, CLI commands, config keys, timeline branch/commit labels, score numbers.
+- Headlines are **heavy and tight** — `font-black` (or `font-extrabold`) with `tracking-tighter`, big sizes (hero `text-6xl`+, sections `text-4xl`), to match the RIG/HydraDB display energy. Geist Black is the default; a more characterful grotesque display face can be swapped in later if we want more edge (flagged as an open question, not blocking).
+- Mono **uppercase micro-labels** in vermillion are a signature element: section eyebrows ("THE PROBLEM"), card kickers, ticker items, stat labels.
+- Mono is also used for: the wordmark, SHAs, CLI commands, config keys, timeline branch/commit labels, score numbers.
 
 ### Other tokens
 
 - Radius: `rounded-lg` (0.5rem) default; `rounded-full` for pills/CTAs.
-- Borders: 1px hairline `zinc-800`; focus ring `lime-400` at ~40% with 2px offset on `zinc-950`.
+- Borders: 1px hairline `zinc-800`; focus ring `vermillion` at ~40% with 2px offset on `zinc-950`.
 - Motion: 150ms ease transitions; fades and small translates only. No bounce.
-- Texture: a subtle dotted-grid background **on the landing hero only**.
+- Texture: the red hero carries a subtle darker-red grid/noise overlay; the black sections carry a faint `zinc-900` dotted grid behind data motifs.
+- **Corner brackets:** a recurring `⌐ ¬` / `L ⌐` framing on stat chips, score chips, and feature cards (HydraDB-style) — thin vermillion strokes at the corners rather than a full border.
 
 ### Shared components
 
-- `<ScoreChip score={number} />` — pill showing a 0–100 score, colored by the low/mid/high scale, mono numerals.
+- `<ScoreChip score={number} />` — corner-bracketed chip showing a 0–100 score, colored by the low/mid/high scale, mono numerals.
 - `<CopyButton text={string} />` — copies CLI snippets/SHAs, shows a transient check.
-- `<Terminal>` — a faux terminal frame (window chrome dots, mono body) used in the hero and docs.
-- `<Logo />` — `◢ walkthru` mono wordmark.
+- `<Terminal>` — a faux terminal frame (window chrome dots, mono body) used in the hero/problem section and docs.
+- `<Logo />` — `◢ walkthru` mono wordmark (black on the red hero, white on dark).
+- `<Ticker>` — full-width marquee bar of mono uppercase value-props separated by `·` (RIG-style), sits at the red→black seam.
+- `<CornerBracket>` — wrapper that draws thin vermillion corner strokes around stats/cards.
+- `<GitGraphMotif>` — decorative dotted/pixel git-graph used as the hero/problem-section data motif (echoes HydraDB's pixel tree).
 
 ## 5. Auth boundary (the stub)
 
@@ -178,12 +184,16 @@ Docs is a **single scrollable page** with a sticky sidebar that scroll-spies sec
 
 ### 8.1 Landing (`/`)
 
-- **Header** (sticky, hairline bottom border, blur backdrop): `<Logo />` left; `Docs` link + `Sign in` button right. On mobile, collapse links into a menu.
-- **Hero** (dotted-grid bg): eyebrow, headline (~"Ship code your team actually understands"), one-line subhead, two CTAs — `Get started` (lime, → `/signin`) and a mono `npm i -g @walkthru/cli` pill with `<CopyButton>`.
-- **Terminal demo**: `<Terminal>` showing the gate flow from the spec — staged line count, a generated question, a typed answer, then `Score: 82/100` with feedback. Static, styled, the centerpiece proof.
-- **Feature grid**: 3–4 cards — Visual timeline, AI Q&A grounded in real diffs, The comprehension gate, Scores as coaching. Each: mono label, title, one sentence, small motif.
+RIG-style structure: a full-bleed **red hero** that hard-cuts into a **black body**.
+
+- **Header** (on the red hero at top): `<Logo />` in black left; `Docs` link + black `Sign in` button right (black-on-red, like RIG's "Get Early Access"). Sticky — once scrolled past the hero it becomes a solid black bar with white logo + hairline bottom border. Mobile: collapse links into a menu.
+- **Red hero** (full-bleed vermillion, subtle darker-red grid/noise): heavy black headline (~"Ship code your team actually understands."), one-line black subhead, two CTAs — `Get started` (black button, → `/signin`) and a mono `npm i -g @walkthru/cli` pill with `<CopyButton>` (black/outline on red).
+- **Ticker seam**: `<Ticker>` marquee bar at the red→black transition — `COMPREHENSION GATE · VISUAL TIMELINE · AI Q&A · GROUNDED IN YOUR DIFFS ·`.
+- **The Problem** (black): mono red eyebrow "THE PROBLEM", heavy white headline, a 2×2 grid of points (commit noise, evaporating PR context, onboarding, "why does this work?") with mono red kickers; a `<GitGraphMotif>` dotted graph alongside.
+- **Terminal demo** (black): `<Terminal>` showing the gate flow from the spec — staged line count, a generated question, a typed answer, then `Score: 82/100` with feedback. Static, styled, the centerpiece proof.
+- **Feature grid** (black, corner-bracketed cards): 3–4 — Visual timeline, AI Q&A grounded in real diffs, The comprehension gate, Scores as coaching. Each: mono red label, title, one sentence, small motif.
 - **Footer**: wordmark, minimal links (Docs, GitHub, repo), copyright.
-- Responsive: single column under `md`; CTAs stack; terminal scrolls horizontally if needed.
+- Responsive: single column under `md`; CTAs stack; terminal/graph scroll horizontally if needed.
 
 ### 8.2 Docs (`/docs`)
 
@@ -196,7 +206,7 @@ Docs is a **single scrollable page** with a sticky sidebar that scroll-spies sec
 ### 8.3 Sign in / Sign up (`(auth)/signin`)
 
 - Centered card on dark, narrow. Logo above.
-- Buttons: `Continue with GitHub` (lime primary), `Continue with Google` (outline), divider "or", email `Input` + `Continue` button.
+- Buttons: `Continue with GitHub` (vermillion primary), `Continue with Google` (outline), divider "or", email `Input` + `Continue` button.
 - Microcopy under GitHub: "Connects your repos in one step." Under email/Google: notes a GitHub connect step follows.
 - A sign-in/sign-up **toggle** (link) — same form, copy changes ("Welcome back" vs "Create your account").
 - Submitting calls `signIn(provider)`, then routes: GitHub → `/dashboard`; Google/email → `/connect-github`.
@@ -239,6 +249,8 @@ Docs is a **single scrollable page** with a sticky sidebar that scroll-spies sec
 ## 10. Open questions / deferred
 
 - Brand wordmark mark (`◢`) — placeholder; can refine later.
+- Display typeface — Geist Black by default; a more characterful grotesque (RIG-style) could be swapped in for headlines if we want more edge.
+- Score "low" color — rose by default; fall back to a muted/dim chip if rose reads too close to the vermillion brand.
 - Exact landing headline/subhead copy — draft in build, easy to tweak.
 - Whether Connect GitHub is skippable — default to required; revisit if onboarding needs a softer path.
 - Commit detail panel, PR view, branch comparison, comprehension analytics — future phases.
