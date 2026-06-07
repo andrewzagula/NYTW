@@ -37,7 +37,7 @@ Six screens:
 - **Next.js 16.2.7** (App Router), **React 19**, **TypeScript**.
 - **Tailwind CSS v4** (already configured via `@import "tailwindcss"` + `@theme`).
 - **shadcn/ui** for accessible primitives (button, dialog, dropdown-menu, tabs, input, card), **themed hard** to the tokens below so they don't read as default-shadcn. shadcn copies component source into the repo, so we own and restyle it.
-- **Geist Sans** (UI/prose) + **Geist Mono** (code, SHAs, CLI, timeline labels) — both already wired in `layout.tsx`.
+- **Martina Plantijn** (serif display, loaded from `public/martina-plantijn-font-family/` via `next/font/local`) + **Inter** (UI/body, via `next/font/google`) + **system monospace** (code/SHAs/CLI/labels — no extra download). `layout.tsx` currently wires Geist and must be rewired to these.
 - **Mocked data** in `lib/mock/`, **stubbed auth** in `lib/auth/`.
 
 > ⚠️ `walkthru-app/AGENTS.md` flags this Next.js as having breaking changes from older versions. Before scaffolding shadcn or writing route code, verify against `node_modules/next/dist/docs/` and confirm shadcn's init works with the installed Next 16 + Tailwind v4 — do not assume older App Router conventions.
@@ -68,10 +68,12 @@ The brand accent is an orange-leaning vermillion; the low-score color is a pink-
 
 ### Type
 
-- Sans: Geist Sans. Mono: Geist Mono.
-- Headlines are **heavy and tight** — `font-black` (or `font-extrabold`) with `tracking-tighter`, big sizes (hero `text-6xl`+, sections `text-4xl`), to match the RIG/HydraDB display energy. Geist Black is the default; a more characterful grotesque display face can be swapped in later if we want more edge (flagged as an open question, not blocking).
-- Mono **uppercase micro-labels** in vermillion are a signature element: section eyebrows ("THE PROBLEM"), card kickers, ticker items, stat labels.
-- Mono is also used for: the wordmark, SHAs, CLI commands, config keys, timeline branch/commit labels, score numbers.
+Three roles, two loaded webfonts:
+
+- **Display — Martina Plantijn** (serif), loaded local from `public/` via `next/font/local`, mapped to a `--font-display` variable. Used for hero + section headlines at **Black/Bold** weight, large sizes (hero `text-6xl`+, sections `text-4xl`), `tracking-tight`. An editorial serif headline against the technical red/dark gives Walkthru a premium edge — a deliberate move away from the RIG grotesque.
+- **UI/body — Inter**, via `next/font/google`, mapped to `--font-sans`. All nav, body copy, buttons, form fields, card text, metadata.
+- **Mono — system stack** (`ui-monospace, "SF Mono", Menlo, monospace`), mapped to `--font-mono`. Used for: the `◢ walkthru` wordmark, SHAs, CLI commands, config keys, timeline branch/commit labels, score numerals, and the **uppercase micro-labels in vermillion** (eyebrows like "THE PROBLEM", card kickers, ticker items, stat labels) — a signature element. No font download.
+- The `martina-plantijn-font-family/` files are **trial weights** (`Test…`, see `Befonts-License.txt`) — fine for development; a production license is required before shipping.
 
 ### Other tokens
 
@@ -249,7 +251,8 @@ RIG-style structure: a full-bleed **red hero** that hard-cuts into a **black bod
 ## 10. Open questions / deferred
 
 - Brand wordmark mark (`◢`) — placeholder; can refine later.
-- Display typeface — Geist Black by default; a more characterful grotesque (RIG-style) could be swapped in for headlines if we want more edge.
+- Monospace for code/labels — defaults to the system mono stack (no third webfont). Drop entirely (code in Inter) only if the user prefers zero mono.
+- Martina Plantijn is a **trial license** — production use needs a proper license.
 - Score "low" color — rose by default; fall back to a muted/dim chip if rose reads too close to the vermillion brand.
 - Exact landing headline/subhead copy — draft in build, easy to tweak.
 - Whether Connect GitHub is skippable — default to required; revisit if onboarding needs a softer path.
