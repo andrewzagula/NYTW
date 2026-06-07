@@ -4,13 +4,13 @@ import { login } from "./commands/login.js";
 import { init } from "./commands/init.js";
 import { openWalkthru } from "./commands/open.js";
 import { newCommit } from "./commands/new-commit.js";
-import { runCommitGate } from "./hooks/commit.js";
+import { runPostCommitHook, runPrePushHook } from "./hooks/commit.js";
 
 const program = new Command();
 
 program
   .name("walkthru")
-  .description("Comprehension gate for git commits")
+  .description("Register commits with Walkthru")
   .version("0.1.0")
   .action(openWalkthru);
 
@@ -26,7 +26,7 @@ program
 
 program
   .command("init")
-  .description("Install the Walkthru commit hook in the current repo")
+  .description("Install Walkthru git hooks in the current repo")
   .action(init);
 
 program
@@ -39,8 +39,13 @@ program
 const hook = program.command("hook").description("Internal hook runners (called by git)");
 
 hook
-  .command("commit-msg <msg-file>")
-  .description("Run the comprehension gate")
-  .action(runCommitGate);
+  .command("post-commit")
+  .description("Register the commit that was just created")
+  .action(runPostCommitHook);
+
+hook
+  .command("pre-push")
+  .description("Register outgoing commits that were not registered locally")
+  .action(runPrePushHook);
 
 program.parse();

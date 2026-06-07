@@ -7,7 +7,7 @@ import { CodeBlock } from "@/components/shared/code-block";
 export const metadata: Metadata = {
   title: "Docs — Walkthru CLI",
   description:
-    "Install the Walkthru CLI, install the commit-msg hook, and configure the comprehension gate.",
+    "Install the Walkthru CLI, install git hooks, and register commits with Walkthru.",
 };
 
 const SECTIONS: DocSection[] = [
@@ -16,18 +16,12 @@ const SECTIONS: DocSection[] = [
   { id: "login", label: "walkthru login" },
   { id: "init", label: "walkthru init" },
   { id: "config", label: "Configuration" },
-  { id: "question-types", label: "Question types" },
-  { id: "grading", label: "Grading rubric" },
-  { id: "gate", label: "The gate flow" },
+  { id: "hook-flow", label: "Hook flow" },
 ];
 
 const CONFIG_JSON = `{
-  "threshold": 70,
-  "allowOverride": true,
-  "overrideRequiresNote": true,
-  "questionTypes": ["explain", "impact", "risk"],
-  "exemptPaths": ["*.md", "*.lock", "generated/**"],
-  "minDiffLines": 10
+  "includeDiff": true,
+  "maxDiffBytes": 120000
 }`;
 
 function Heading({ id, eyebrow, children }: { id: string; eyebrow: string; children: React.ReactNode }) {
@@ -60,12 +54,11 @@ export default function DocsPage() {
               Walkthru CLI
             </p>
             <h1 className="mt-3 font-display text-5xl font-black leading-[1.0] tracking-tight">
-              The comprehension gate, in your terminal.
+              Commit registration, wired into git.
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-              The Walkthru CLI installs a <code className="font-mono text-foreground">commit-msg</code> hook
-              that reads your staged diff, asks one question about it, grades your
-              answer, and lets the commit through when you pass.
+              The Walkthru CLI installs git hooks that register commits with the
+              API and print the quiz URL returned by the web app.
             </p>
           </header>
 
@@ -78,9 +71,8 @@ export default function DocsPage() {
               <strong className="font-medium text-foreground">web app</strong>{" "}
               visualizes your git history and answers questions about it. The{" "}
               <strong className="font-medium text-foreground">CLI</strong>{" "}
-              intercepts <code className="font-mono text-foreground">git commit</code> and
-              runs the comprehension gate before code is written. Scores from the
-              CLI sync to the web app automatically.
+              registers commit metadata after commits are created and retries
+              unregistered outgoing commits before push.
             </p>
           </section>
 
@@ -99,8 +91,8 @@ export default function DocsPage() {
               walkthru login
             </Heading>
             <p className="leading-relaxed text-muted-foreground">
-              Opens your browser for GitHub OAuth and stores the token locally so
-              the CLI can sync scores to your Walkthru account.
+              Stores the token locally so the CLI can register commits with your
+              Walkthru account.
             </p>
             <CodeBlock label="bash" code="walkthru login" />
           </section>
@@ -110,10 +102,11 @@ export default function DocsPage() {
               walkthru init
             </Heading>
             <p className="leading-relaxed text-muted-foreground">
-              Run inside a repository. Installs the hook into{" "}
-              <code className="font-mono text-foreground">.git/hooks/commit-msg</code>{" "}
+              Run inside a repository. Installs hooks into{" "}
+              <code className="font-mono text-foreground">.git/hooks/post-commit</code>{" "}
+              and <code className="font-mono text-foreground">.git/hooks/pre-push</code>{" "}
               and writes a <code className="font-mono text-foreground">.walkthru.json</code>{" "}
-              config. Commit that file so your team shares the same gate.
+              config.
             </p>
             <CodeBlock label="bash" code={"cd your-repo\nwalkthru init"} />
           </section>
@@ -123,72 +116,25 @@ export default function DocsPage() {
               .walkthru.json
             </Heading>
             <p className="leading-relaxed text-muted-foreground">
-              Lives at the repo root and controls the gate&apos;s behavior.
+              Lives at the repo root and controls hook registration behavior.
             </p>
             <CodeBlock label=".walkthru.json" code={CONFIG_JSON} />
             <ul className="space-y-2.5 text-sm leading-relaxed text-muted-foreground">
-              <li><code className="font-mono text-foreground">threshold</code> — minimum score to pass (0–100).</li>
-              <li><code className="font-mono text-foreground">allowOverride</code> — whether <code className="font-mono text-foreground">--skip</code> is permitted; always logged.</li>
-              <li><code className="font-mono text-foreground">overrideRequiresNote</code> — forces a reason when skipping.</li>
-              <li><code className="font-mono text-foreground">questionTypes</code> — which kinds of questions to ask.</li>
-              <li><code className="font-mono text-foreground">exemptPaths</code> — globs that skip the gate (docs, lockfiles, generated code).</li>
-              <li><code className="font-mono text-foreground">minDiffLines</code> — diffs smaller than this skip entirely.</li>
+              <li><code className="font-mono text-foreground">includeDiff</code> — include the commit patch in the registration payload.</li>
+              <li><code className="font-mono text-foreground">maxDiffBytes</code> — truncate large diffs before sending them to the API.</li>
             </ul>
           </section>
 
           <section className="space-y-4">
-            <Heading id="question-types" eyebrow="06 · Question types">
-              explain · impact · risk
-            </Heading>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { k: "explain", d: "Summarize what this change does in your own words." },
-                { k: "impact", d: "What behavior changes for users or callers of this code?" },
-                { k: "risk", d: "What could go wrong, and how would you detect it?" },
-              ].map((q) => (
-                <div key={q.k} className="rounded-lg border border-border bg-card/30 p-4">
-                  <p className="font-mono text-xs uppercase tracking-widest text-vermillion">{q.k}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{q.d}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <Heading id="grading" eyebrow="07 · Grading">
-              How answers are scored
-            </Heading>
-            <p className="leading-relaxed text-muted-foreground">
-              Claude grades on three dimensions, weighted equally. A 100 would
-              satisfy a skeptical senior engineer in review; a 0 shows no
-              understanding.
-            </p>
-            <ul className="space-y-2.5 text-sm leading-relaxed text-muted-foreground">
-              <li><strong className="font-medium text-foreground">Accuracy</strong> — is the answer factually correct about what the code does?</li>
-              <li><strong className="font-medium text-foreground">Depth</strong> — does it show understanding of <em>why</em>, not just <em>what</em>?</li>
-              <li><strong className="font-medium text-foreground">Awareness</strong> — does it acknowledge risks, edge cases, or downstream effects?</li>
-            </ul>
-          </section>
-
-          <section className="space-y-4">
-            <Heading id="gate" eyebrow="08 · The flow">
-              What a gated commit looks like
+            <Heading id="hook-flow" eyebrow="06 · Hook flow">
+              What registration looks like
             </Heading>
             <CodeBlock
-              label="commit-msg"
-              code={`◢ walkthru — comprehension gate
-Staged: 47 lines across 3 files
+              label="post-commit"
+              code={`$ git commit -m "feat: add retry policy"
+[main 4f3a8c2] feat: add retry policy
 
-Q: You replaced the forEach loop with a reduce here. What advantage
-   does this give you, and is there a case where it behaves differently?
-
-A: _
-
-Score: 82/100
-"Good explanation of the immutability benefit. Could have mentioned
- the empty-array edge case with the initial accumulator."
-
-✓ Commit proceeding…`}
+Walkthru quiz for 4f3a8c2: https://walkthru.dev/...`}
             />
           </section>
         </main>
