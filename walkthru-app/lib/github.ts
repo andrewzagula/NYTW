@@ -68,6 +68,69 @@ export async function fetchAllCommits(
   return commits;
 }
 
+export interface CommitFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+}
+
+export interface CommitDetail {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+  stats: { additions: number; deletions: number; total: number };
+  files: CommitFile[];
+}
+
+export async function fetchCommitDiff(
+  owner: string,
+  repo: string,
+  sha: string,
+  token: string
+): Promise<CommitDetail | GitHubError> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      error: (body as { message?: string }).message ?? res.statusText,
+      status: res.status,
+    };
+  }
+
+  const data = (await res.json()) as {
+    sha: string;
+    commit: { message: string; author: { name: string; date: string } };
+    stats: { additions: number; deletions: number; total: number };
+    files: Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }>;
+  };
+
+  return {
+    sha: data.sha,
+    message: data.commit.message,
+    author: data.commit.author.name,
+    date: data.commit.author.date,
+    stats: data.stats,
+    files: data.files.map((f) => ({
+      filename: f.filename,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      patch: f.patch ?? null,
+    })),
+  };
+}
+
 export async function fetchUserRepos(
   token: string
 ): Promise<Repo[] | GitHubError> {
