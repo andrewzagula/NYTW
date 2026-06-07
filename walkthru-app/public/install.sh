@@ -7,6 +7,10 @@ set -euo pipefail
 REPO_URL="${WALKTHRU_REPO_URL:-https://github.com/andrewzagula/NYTW.git}"
 REPO_REF="${WALKTHRU_REPO_REF:-main}"
 CLI_SUBDIR="walkthru-cli"
+# Persistent install location. bun link symlinks the global binary into this
+# directory, so it must survive after the installer exits.
+INSTALL_HOME="${WALKTHRU_HOME:-$HOME/.walkthru}"
+REPO_DIR="$INSTALL_HOME/repo"
 
 print_step() {
   printf '\n==> %s\n' "$1"
@@ -23,16 +27,19 @@ require_command() {
 require_command git
 require_command bun
 
-WORKDIR="$(mktemp -d)"
-cleanup() {
-  rm -rf "$WORKDIR"
-}
-trap cleanup EXIT
-
 print_step "Downloading Walkthru CLI ($REPO_REF)"
-git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$WORKDIR/repo"
+mkdir -p "$INSTALL_HOME"
+if [[ -d "$REPO_DIR/.git" ]]; then
+  # Update an existing install in place rather than re-cloning.
+  git -C "$REPO_DIR" remote set-url origin "$REPO_URL"
+  git -C "$REPO_DIR" fetch --depth 1 origin "$REPO_REF"
+  git -C "$REPO_DIR" checkout -f FETCH_HEAD
+else
+  rm -rf "$REPO_DIR"
+  git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$REPO_DIR"
+fi
 
-CLI_DIR="$WORKDIR/repo/$CLI_SUBDIR"
+CLI_DIR="$REPO_DIR/$CLI_SUBDIR"
 if [[ ! -d "$CLI_DIR" ]]; then
   printf 'Could not find %s in the repository.\n' "$CLI_SUBDIR" >&2
   exit 1
@@ -69,4 +76,5 @@ command -v walkthru
 print_step "Available commands"
 walkthru --help
 
-printf '\nWalkthru CLI install complete. In a git repo, run: walkthru init\n'
+printf '\nWalkthru CLI installed to %s\n' "$CLI_DIR"
+printf 'In a git repo, run: walkthru init\n'
