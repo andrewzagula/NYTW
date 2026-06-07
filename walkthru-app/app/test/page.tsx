@@ -90,7 +90,6 @@ export default function TestPage() {
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [connectedRepos, setConnectedRepos] = useState<ConnectedRepo[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
 
   useEffect(() => {
@@ -114,7 +113,6 @@ export default function TestPage() {
 
     const stored = localStorage.getItem("walkthru_session_id");
     if (stored) {
-      setSessionId(stored);
       fetch(`/api/sessions?sessionId=${encodeURIComponent(stored)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => { if (d) setCurrentSession(d as GameSession); })
@@ -233,7 +231,6 @@ export default function TestPage() {
     if (!r.ok) return;
     const { sessionId: newId } = await r.json() as { sessionId: string };
     localStorage.setItem("walkthru_session_id", newId);
-    setSessionId(newId);
     const session = await fetch(`/api/sessions?sessionId=${encodeURIComponent(newId)}`).then((r2) =>
       r2.ok ? r2.json() : null
     );
@@ -337,7 +334,6 @@ export default function TestPage() {
                     setUserProfile(null);
                     setConnectedRepos([]);
                     setCurrentSession(null);
-                    setSessionId(null);
                   }}
                   className="text-xs text-gray-500 hover:text-gray-300"
                 >
@@ -565,10 +561,9 @@ export default function TestPage() {
                   <h2 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Current Session</h2>
                   <button
                     onClick={() => {
-                      localStorage.removeItem("walkthru_session_id");
-                      setSessionId(null);
-                      setCurrentSession(null);
-                    }}
+                    localStorage.removeItem("walkthru_session_id");
+                    setCurrentSession(null);
+                  }}
                     className="text-[11px] text-gray-500 hover:text-gray-300"
                   >
                     clear
