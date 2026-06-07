@@ -127,17 +127,17 @@ export function TimelineGraph({
           <li
             key={n.sha}
             style={{ height: ROW, paddingLeft: GUTTER }}
-            className="border-b border-border/40 last:border-b-0"
+            className={`border-b border-border/40 transition-colors last:border-b-0 ${
+              n.sha === activeSha
+                ? "bg-vermillion/5 shadow-[inset_3px_0_0_0_var(--color-vermillion)]"
+                : "hover:bg-accent/40"
+            }`}
           >
             <Link
               href={`/repos/${owner}/${name}?commit=${n.sha}`}
               scroll={false}
               aria-current={n.sha === activeSha ? "true" : undefined}
-              className={`flex h-full min-w-0 items-center gap-4 pr-1 transition-colors ${
-                n.sha === activeSha
-                  ? "bg-vermillion/5 shadow-[inset_3px_0_0_0_var(--color-vermillion)]"
-                  : "hover:bg-accent/40"
-              }`}
+              className="flex h-full min-w-0 items-center gap-4 pr-4 sm:pr-6"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2.5">

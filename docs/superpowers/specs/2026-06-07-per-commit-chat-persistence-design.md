@@ -132,7 +132,8 @@ In `app/(app)/repos/[owner]/[name]/page.tsx`:
 In `components/timeline/timeline-graph.tsx`:
 
 - Remove the `ScoreChip` usage and its import.
-- Add a `chatShas?: string[]` (or `Set<string>`) prop.
+- Add a `chatShas?: string[]` prop (the page passes an array; the component
+  builds a `Set` internally for O(1) lookup).
 - Replace the score column with a chat button: a `MessageSquare` icon button
   styled consistently with the existing design, that opens `?commit=<sha>` (same
   navigation the row already uses). Show a small dot/marker when the row's sha is

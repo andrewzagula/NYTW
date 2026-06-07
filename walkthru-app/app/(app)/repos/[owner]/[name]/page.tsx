@@ -124,7 +124,7 @@ export default async function RepoTimelinePage({
               No commits found for this repository.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border bg-card/20 px-2 py-2 sm:px-4">
+            <div className="overflow-hidden rounded-xl border border-border bg-card/20 py-2">
               <TimelineGraph
                 nodes={nodes}
                 owner={meta.owner}
