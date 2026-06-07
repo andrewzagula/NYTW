@@ -3,6 +3,7 @@ import { join } from "path";
 import simpleGit from "simple-git";
 import { input } from "@inquirer/prompts";
 import chalk from "chalk";
+import { apiPost } from "../lib/api.js";
 import { getToken } from "../lib/config.js";
 
 interface WalkthruConfig {
@@ -23,8 +24,6 @@ interface GradeResponse {
   score: number;
   feedback: string;
 }
-
-const WALKTHRU_API = "https://walkthru.dev/api";
 
 function loadConfig(): WalkthruConfig {
   const configPath = join(process.cwd(), ".walkthru.json");
@@ -48,20 +47,6 @@ function isExempt(file: string, patterns: string[]): boolean {
     );
     return re.test(file);
   });
-}
-
-async function apiPost<T>(path: string, token: string, body: unknown): Promise<T | null> {
-  try {
-    const res = await fetch(`${WALKTHRU_API}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return res.json() as Promise<T>;
-  } catch {
-    return null;
-  }
 }
 
 export async function runCommitGate(msgFile: string) {
