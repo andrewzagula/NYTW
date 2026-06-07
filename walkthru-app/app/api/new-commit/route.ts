@@ -113,6 +113,9 @@ export async function POST(request: NextRequest) {
   let commitUrl: string | null = null;
   if (repo.includes("/") && repo !== "unknown" && payload.commitSha) {
     const commitPath = new URL(`/repos/${repo}`, baseUrl);
+    if (payload.branch) {
+      commitPath.searchParams.set("branch", payload.branch);
+    }
     commitPath.searchParams.set("commit", payload.commitSha);
     commitUrl = commitPath.toString();
   }

@@ -3,6 +3,7 @@ import { dirname, join } from "path";
 import chalk from "chalk";
 import simpleGit, { SimpleGit } from "simple-git";
 import { registerNewCommit } from "../commands/new-commit.js";
+import { openBrowser } from "../lib/browser.js";
 import { getRepoContext } from "../lib/git.js";
 
 interface WalkthruConfig {
@@ -124,10 +125,14 @@ async function registerCommit(git: SimpleGit, sha: string, source: "post-commit"
   }
 
   await markRegistered(git, sha);
-  console.log(chalk.green(`Walkthru quiz for ${sha.slice(0, 7)}: ${data.url}`));
+
+  // Open the "take quiz" page (the commit walkthru) and print the answer-key
+  // link so it's available without leaving the terminal.
   if (data.commitUrl) {
-    console.log(chalk.green(`Commit for ${sha.slice(0, 7)}: ${data.commitUrl}`));
+    openBrowser(data.commitUrl);
+    console.log(chalk.green(`Take quiz for ${sha.slice(0, 7)}: ${data.commitUrl}`));
   }
+  console.log(chalk.dim(`See answers: ${data.url}`));
 }
 
 export async function runPostCommitHook(): Promise<void> {
