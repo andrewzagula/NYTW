@@ -44,8 +44,11 @@ hook
   .action(runPostCommitHook);
 
 hook
-  .command("pre-push")
+  // Git invokes the pre-push hook with `<remote> <url>` positional args; accept
+  // and ignore them (the commit list is read from stdin) so commander doesn't
+  // error with "too many arguments".
+  .command("pre-push [gitArgs...]")
   .description("Register outgoing commits that were not registered locally")
-  .action(runPrePushHook);
+  .action(() => runPrePushHook());
 
 program.parse();
