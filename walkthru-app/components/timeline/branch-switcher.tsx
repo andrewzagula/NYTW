@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, GitBranch } from "lucide-react";
 import {
   DropdownMenu,
@@ -12,11 +12,23 @@ import {
 export function BranchSwitcher({
   branches,
   defaultBranch,
+  selectedBranch,
 }: {
   branches: string[];
   defaultBranch: string;
+  selectedBranch?: string;
 }) {
-  const [selected, setSelected] = useState(defaultBranch);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selected = selectedBranch ?? searchParams.get("branch") ?? defaultBranch;
+
+  function selectBranch(branch: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("branch", branch);
+    params.delete("commit");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   return (
     <DropdownMenu>
@@ -29,7 +41,7 @@ export function BranchSwitcher({
         {branches.map((b) => (
           <DropdownMenuItem
             key={b}
-            onClick={() => setSelected(b)}
+            onClick={() => selectBranch(b)}
             className="font-mono text-sm"
           >
             {b}

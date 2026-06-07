@@ -32,6 +32,7 @@ export function TimelineGraph({
   nodes,
   owner,
   name,
+  branch,
   activeSha,
   chatShas = [],
   scores = {},
@@ -39,6 +40,7 @@ export function TimelineGraph({
   nodes: TimelineNode[];
   owner: string;
   name: string;
+  branch: string;
   activeSha?: string;
   /** SHAs that already have a saved chat for the current user. */
   chatShas?: string[];
@@ -143,23 +145,26 @@ export function TimelineGraph({
             }`}
           >
             <Link
-              href={`/repos/${owner}/${name}?commit=${n.sha}`}
+              href={`/repos/${owner}/${name}?branch=${encodeURIComponent(branch)}&commit=${n.sha}`}
               scroll={false}
               aria-current={n.sha === activeSha ? "true" : undefined}
-              className="group flex h-full min-w-0 items-center gap-4 pr-4 sm:pr-6"
+              className="group grid h-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pr-4 sm:pr-6 md:grid-cols-[minmax(0,1fr)_7rem_4.5rem_auto] xl:grid-cols-[minmax(0,1fr)_9rem_5rem_auto]"
             >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2.5">
-                  <code className="rounded border border-border bg-card/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                    {n.sha}
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <code
+                    title={n.sha}
+                    className="shrink-0 rounded border border-border bg-card/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                  >
+                    {n.sha.slice(0, 12)}
                   </code>
                   {n.type === "merge" && (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-vermillion">
+                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-vermillion">
                       merge
                     </span>
                   )}
                   {n.lane === 1 && (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       {n.branch}
                     </span>
                   )}
@@ -173,16 +178,16 @@ export function TimelineGraph({
                 </p>
               </div>
 
-              <div className="hidden items-center gap-2.5 sm:flex">
+              <div className="hidden min-w-0 items-center gap-2.5 md:flex">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-[10px] font-medium text-foreground">
                   {n.author.initials}
                 </span>
-                <span className="w-24 truncate text-xs text-muted-foreground">
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
                   {n.author.name}
                 </span>
               </div>
 
-              <span className="hidden w-20 shrink-0 text-right font-mono text-xs text-zinc-600 md:block">
+              <span className="hidden min-w-0 text-right font-mono text-xs text-zinc-600 md:block">
                 {relativeTime(n.date)}
               </span>
 

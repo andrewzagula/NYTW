@@ -6,6 +6,7 @@ import { fetchRepoMeta, fetchCommitDiff } from "@/lib/github";
 import {
   buildSystemPrompt,
   lastUserText,
+  REPO_CHAT_THREAD_KEY,
   scriptedMockAnswer,
   type ChatCommit,
   type ChatRepo,
@@ -14,9 +15,9 @@ import { mockUIMessageResponse } from "@/lib/chat/mock-stream";
 import { queryIndex } from "@/lib/perseus";
 
 /**
- * Persist a per-commit chat thread, swallowing any DB error so a storage
- * failure never breaks the chat response. No-op unless we know the user and the
- * commit (general repo chat is intentionally not saved).
+ * Persist a chat thread, swallowing any DB error so a storage failure never
+ * breaks the chat response. Commit chats are keyed by SHA; repo chat uses a
+ * reserved synthetic key.
  */
 async function persistThread(
   userId: string | undefined,
@@ -24,9 +25,9 @@ async function persistThread(
   commitSha: string | undefined,
   messages: UIMessage[],
 ): Promise<void> {
-  if (!userId || !commitSha) return;
+  if (!userId) return;
   try {
-    await saveChatMessages(userId, repo, commitSha, messages);
+    await saveChatMessages(userId, repo, commitSha ?? REPO_CHAT_THREAD_KEY, messages);
   } catch (err) {
     console.error("Failed to save chat thread", err);
   }

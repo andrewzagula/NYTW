@@ -32,13 +32,20 @@ export async function fetchAllCommits(
   owner: string,
   repo: string,
   token: string,
-  limit = 500
+  limit = 500,
+  ref?: string
 ): Promise<Commit[] | GitHubError> {
   const commits: Commit[] = [];
   let page = 1;
 
   while (commits.length < limit) {
-    const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=100&page=${page}`;
+    const params = new URLSearchParams({
+      per_page: "100",
+      page: String(page),
+    });
+    if (ref) params.set("sha", ref);
+
+    const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?${params.toString()}`;
     const res = await fetch(url, { headers: authHeaders(token) });
 
     if (!res.ok) {

@@ -56,12 +56,21 @@ type QuizPanelProps = {
   owner: string;
   name: string;
   commitSha: string | null;
+  /** Used by the fallback ChatPanel to build the "switch to commit chat" link. */
+  defaultCommitSha?: string | null;
   /** Mounted in "general" mode when no commit is selected — falls back to chat. */
   mode: "general" | "commit";
   chat: ChatBootstrap;
 };
 
-export function QuizPanel({ owner, name, commitSha, mode, chat }: QuizPanelProps) {
+export function QuizPanel({
+  owner,
+  name,
+  commitSha,
+  defaultCommitSha,
+  mode,
+  chat,
+}: QuizPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [openMobile, setOpenMobile] = useState(false);
 
@@ -72,6 +81,7 @@ export function QuizPanel({ owner, name, commitSha, mode, chat }: QuizPanelProps
         owner={owner}
         name={name}
         commitSha={null}
+        defaultCommitSha={defaultCommitSha}
         mode="general"
         header={chat.header}
         commitMessage={chat.commitMessage}

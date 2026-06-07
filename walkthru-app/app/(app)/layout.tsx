@@ -45,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
+        <div className="flex h-16 items-center justify-between px-5 sm:px-8">
           <Logo href="/dashboard" />
 
           <DropdownMenu>
