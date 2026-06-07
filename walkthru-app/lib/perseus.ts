@@ -29,6 +29,19 @@ export type PerseusHit = {
   lineEnd: number;
   snippet: string;
   score: number;
+  /** "function" | "class" | … — the kind of symbol the snippet encloses. */
+  kind?: string;
+  /** Qualified name of the enclosing symbol, e.g. getAssignmentEarnedPoints. */
+  symbol?: string;
+  /** Symbol signature, when the index resolved one. */
+  signature?: string;
+};
+
+/** A query result: perseus's own grounded answer plus the ranked hits behind it. */
+export type PerseusResult = {
+  /** Natural-language answer synthesized by perseus, or null if absent. */
+  answer: string | null;
+  hits: PerseusHit[];
 };
 
 type RawHit = {
@@ -37,12 +50,17 @@ type RawHit = {
   line_start: number;
   line_end: number;
   snippet: string;
+  kind?: string;
+  enclosing_symbol?: string;
+  symbol?: { qualified_name?: string; signature?: string } | null;
 };
 
 type RunPayload = {
   status: string;
-  result?: { hits?: RawHit[] } | null;
+  result?: { answer?: string | null; hits?: RawHit[] } | null;
 };
+
+const EMPTY: PerseusResult = { answer: null, hits: [] };
 
 function cookieHeader(): string {
   return `__Secure-next-auth.session-token=${SESSION_TOKEN}`;
@@ -55,6 +73,9 @@ export function mapHits(raw: RawHit[]): PerseusHit[] {
     lineEnd: h.line_end,
     snippet: h.snippet,
     score: h.score,
+    kind: h.kind,
+    symbol: h.symbol?.qualified_name ?? h.enclosing_symbol,
+    signature: h.symbol?.signature,
   }));
 }
 
@@ -62,15 +83,16 @@ const POLL_INTERVAL_MS = 400;
 const MAX_WAIT_MS = 20_000;
 
 /**
- * Query a perseus index for code relevant to `question`. Returns ranked hits,
- * or [] on any failure (missing index id, auth expiry, timeout, network).
+ * Query a perseus index for code relevant to `question`. Returns perseus's
+ * grounded answer and ranked hits, or an empty result on any failure (missing
+ * index id, auth expiry, timeout, network).
  */
 export async function queryIndex(
   question: string,
   topK = 6,
-): Promise<PerseusHit[]> {
+): Promise<PerseusResult> {
   const indexId = process.env.PERSEUS_INDEX_ID;
-  if (!indexId || !question.trim()) return [];
+  if (!indexId || !question.trim()) return EMPTY;
 
   try {
     const startRes = await fetch(`${PERSEUS_BASE}/api/query`, {
@@ -81,9 +103,9 @@ export async function queryIndex(
       },
       body: JSON.stringify({ index_id: indexId, query: question, top_k: topK }),
     });
-    if (!startRes.ok) return [];
+    if (!startRes.ok) return EMPTY;
     const { run_id: runId } = (await startRes.json()) as { run_id?: string };
-    if (!runId) return [];
+    if (!runId) return EMPTY;
 
     const deadline = Date.now() + MAX_WAIT_MS;
     while (Date.now() < deadline) {
@@ -93,16 +115,19 @@ export async function queryIndex(
       if (runRes.ok) {
         const run = (await runRes.json()) as RunPayload;
         if (run.status === "completed") {
-          return mapHits(run.result?.hits ?? []);
+          return {
+            answer: run.result?.answer?.trim() || null,
+            hits: mapHits(run.result?.hits ?? []),
+          };
         }
         if (run.status === "failed" || run.status === "error") {
-          return [];
+          return EMPTY;
         }
       }
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
-    return [];
+    return EMPTY;
   } catch {
-    return [];
+    return EMPTY;
   }
 }

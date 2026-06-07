@@ -50,13 +50,26 @@ export type RetrievedHit = {
   lineStart: number;
   lineEnd: number;
   snippet: string;
+  /** Symbol kind ("function", "class", …), when perseus resolved one. */
+  kind?: string;
+  /** Qualified name of the enclosing symbol. */
+  symbol?: string;
+  /** Symbol signature. */
+  signature?: string;
+};
+
+/** Retrieved context from perseus: its grounded answer plus the ranked hits. */
+export type Retrieval = {
+  answer?: string | null;
+  hits?: RetrievedHit[];
 };
 
 export function buildSystemPrompt(
   repo: ChatRepo,
   commit: ChatCommit | null,
-  hits: RetrievedHit[] = [],
+  retrieval: Retrieval = {},
 ): string {
+  const { answer = null, hits = [] } = retrieval;
   const lines: string[] = [
     `You are Walkthru's code assistant for the repository ${repo.owner}/${repo.name}.`,
     ...(repo.description ? [`Repository summary: ${repo.description}`] : []),
@@ -88,10 +101,23 @@ export function buildSystemPrompt(
     }
   }
 
+  if (answer) {
+    lines.push(
+      "",
+      "A code-retrieval system produced this preliminary answer from the repository. Treat it as a starting point grounded in the snippets below — verify it against them, correct it where the snippets disagree, and expand on it:",
+      answer,
+    );
+  }
+
   if (hits.length > 0) {
     lines.push("", "Relevant code retrieved from the repository:");
     for (const h of hits) {
-      lines.push(`--- ${h.path}:${h.lineStart}-${h.lineEnd} ---`, h.snippet);
+      const label = h.symbol
+        ? `${h.path}:${h.lineStart}-${h.lineEnd} (${h.kind ?? "symbol"} ${h.symbol})`
+        : `${h.path}:${h.lineStart}-${h.lineEnd}`;
+      lines.push(`--- ${label} ---`);
+      if (h.signature) lines.push(`// signature: ${h.signature}`);
+      lines.push(h.snippet);
     }
   }
 
