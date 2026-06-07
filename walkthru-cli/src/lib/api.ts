@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
 
-const DEFAULT_APP_URL = "https://walkthru.dev";
+const DEFAULT_APP_URL = "https://nytw.vercel.app";
 
 function fromConfig(key: "appUrl" | "apiUrl"): string | undefined {
   try {
