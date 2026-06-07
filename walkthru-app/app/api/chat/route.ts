@@ -135,13 +135,14 @@ export async function POST(req: Request) {
   }
 
   // Ground the answer in retrieved code. queryIndex never throws — a miss or
-  // auth/timeout failure returns [] and we answer from metadata + diff alone.
-  const hits = await queryIndex(question);
+  // auth/timeout failure returns an empty result and we answer from metadata +
+  // diff alone. It also carries perseus's own answer, fed in as a starting point.
+  const retrieval = await queryIndex(question);
 
   try {
     const result = streamText({
       model: anthropic(MODEL),
-      system: buildSystemPrompt(chatRepo, chatCommit, hits),
+      system: buildSystemPrompt(chatRepo, chatCommit, retrieval),
       messages: await convertToModelMessages(messages),
     });
 

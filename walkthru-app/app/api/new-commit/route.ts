@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createNewCommitSession, upsertUser } from "@/lib/db";
 import { githubUserId } from "@/lib/auth/server";
 import { generateCommitQuiz, type NewCommitPayload } from "@/lib/quiz/generator";
+import { groundQuizWithPerseus } from "@/lib/quiz/grounding";
 
 type GitHubUser = {
   id: number;
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
     const status = message.includes("ANTHROPIC_API_KEY") ? 503 : 502;
     return NextResponse.json({ error: message }, { status });
   }
+
+  // Ground each question in repository code via perseus. Never throws — an
+  // ungrounded question keeps its empty snippets and the UI degrades cleanly.
+  questions = await groundQuizWithPerseus(questions);
 
   const userId = githubUserId(githubUser.id);
   await upsertUser(userId, {
