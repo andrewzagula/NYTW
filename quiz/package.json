@@ -1,0 +1,11 @@
+{
+  "name": "precommit-quiz",
+  "version": "0.1.0",
+  "description": "Awe's scope — Perseus answer retrieval, scoring, and commit-decision modules for the pre-commit quiz.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}
